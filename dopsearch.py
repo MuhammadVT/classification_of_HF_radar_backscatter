@@ -13,6 +13,7 @@ ctr_time = dt.datetime(2010,1,15)
 rad = "bks"
 channel = None
 bmnum = 7
+params=['velocity']
 ftype = "fitacf"
 filtered = True
 scr = "local"
@@ -93,7 +94,7 @@ def boxcar_filter(fname):
 
     return ffname
 
-def cluster_data(myPtr, bmnum, params=["velocity"], tbands=None):
+def read_data(myPtr, bmnum, params=["velocity"], tbands=None):
     """Reads data from the file pointed to by myPtr
 
     Parameter
@@ -133,13 +134,23 @@ def cluster_data(myPtr, bmnum, params=["velocity"], tbands=None):
     data = dict()
     data_keys = ['vel', 'pow', 'wid', 'elev', 'phi0', 'times', 'freq', 'cpid',
                  'nave', 'nsky', 'nsch', 'slist', 'mode', 'rsep', 'nrang',
-                 'frang', 'gsflg', 'velocity_error', "clust_num"]
+                 'frang', 'gsflg', 'velocity_error']
     for d in data_keys:
         data[d] = []
 
+
+    
     # Read the parameters of interest.
     myPtr.rewind()
     myBeam = myPtr.readRec()
+
+
+#    xx = 0
+#    stack = []
+#    visited = set()
+#    if (myBeam is not None):
+#        stack.append((xx, myBeam.fit.slist[0]))
+
     while(myBeam is not None):
         if(myBeam.time > myPtr.eTime): break
         if(myBeam.bmnum == bmnum and (myPtr.sTime <= myBeam.time)):
@@ -157,6 +168,7 @@ def cluster_data(myPtr, bmnum, params=["velocity"], tbands=None):
                 data['mode'].append(myBeam.prm.ifmode)
                 data['gsflg'].append(myBeam.fit.gflg)
                 data['slist'].append(myBeam.fit.slist)
+                
                 # To save time and RAM, only keep the data specified
                 # in params.
                 if('velocity' in params):
@@ -176,7 +188,78 @@ def cluster_data(myPtr, bmnum, params=["velocity"], tbands=None):
 
     return data
 
-def dopsearch(ctr_time, bmnum, localdirfmt, localdict, tmpdir, fnamefmt):
+def create_graph(vertex, data):
+
+    if vertex[0] == 0:
+        xx = [0, 1]  # time indices centered at the time index of the vertex 
+    else:
+        xx = [vertex[0] + yi for yi in [-1, 0, 1]]  # time indices centered at the time index of the vertex 
+
+    forward = 1
+#    backward = 0
+    if forward:
+        tm_indx = vertex[0]
+        if tm_indx == 0:
+            xx = [0, 1]  # time indices centered at the time index of the vertex 
+        elif tm_indx == len(data['times'])-1:
+            xx = [tm_indx, tm_indx-1]  # time indices centered at the time index of the vertex 
+#            forward = 0
+#            backward = 1
+        else:   
+            xx = [vertex[0] + yi for yi in [-1, 0, 1]]  # time indices centered at the time index of the vertex 
+#    if backward:
+#        if tm_indx == len(data['time'])-1:
+#            xx = [tm_indx, tm_indx-1]  # time indices centered at the time index of the vertex 
+#        elif tm_indx == 0:
+#            xx = [0, 1]  # time indices centered at the time index of the vertex 
+#            backward = 0
+#            forward = 1
+#        else:
+#            xx = [vertex[0] + yi for yi in [-1, 0, 1]]  # time indices centered at the time index of the vertex 
+    yy = [vertex[1] + yi for yi in [-1, 0, 1]]  #range-gate indices centered at the range-gate index of the vertex 
+
+    # create a tuple that inclues actual neighbering vortice
+    xy = [(i,j) for i in xx for j in set(data['slist'][i]).intersection(set(yy))] 
+    xy.remove(vertex)    # remove the vertex from xy 
+    nodes = set()
+    for tpl in xy:
+        nodes.add(tpl)
+    G = {vertex:nodes}
+    return G
+
+
+def search_tree(data, start):
+
+    # create a grash as a start
+    G = create_graph(start, data)
+    # do the breath_firt_search
+    visited, queue = set(), [start]
+    while queue:
+        vertex = queue.pop(0)
+        if vertex[1] < 7: 
+            continue
+        if vertex not in visited:
+            visited.add(vertex)
+            queue.extend(G[vertex] - visited)
+        try:
+            next_node = queue[0]
+            G = create_graph(next_node, data)
+        except:
+            pass
+    return visited
+
+#def classify_even():
+
+def create_nodes(data_dict):
+    """ Create nodes using time indices and gate numbers from the data_dict.
+    A node is a range-gate cell in the rti plot.
+    """
+
+    nodes = [(x,y) for x in xrange(len(data_dict['times'])) for y in data_dict['slist'][x]]
+
+    return nodes
+
+def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt):
 
     # fetch and concatenate the three consecutive days of data centered on the target date 
     #concated_file = fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
@@ -188,9 +271,11 @@ def dopsearch(ctr_time, bmnum, localdirfmt, localdict, tmpdir, fnamefmt):
 
     import sys
     sys.path.append("/home/muhammad/softwares/davitpy_MuhammadVT/davitpy/pydarn/plotting/")
-    from rti import plot_rti
+    #from rti import plot_rti
+    from myrti import plot_rti
 
-    stm = ctr_time - dt.timedelta(days=1)
+    #stm = ctr_time - dt.timedelta(days=1)
+    stm = ctr_time
     etm = ctr_time + dt.timedelta(days=1)
 
     #plot_rti(stm, "bks", eTime=etm, bmnum=7)
@@ -198,7 +283,7 @@ def dopsearch(ctr_time, bmnum, localdirfmt, localdict, tmpdir, fnamefmt):
     #plot_rti(dt.datetime(2013,3,16), 'bks', eTime=dt.datetime(2013,3,16,14,30), bmnum=12)
 
     ftype = "fitacf"
-    scales = [[-150, 150]]
+    scales = [[-120, 120]]
     #ftype = "fitex"
     myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=bmnum, fileName=ffname, fileType=ftype)
     #myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=7, fileType="fitacf")
@@ -208,12 +293,40 @@ def dopsearch(ctr_time, bmnum, localdirfmt, localdict, tmpdir, fnamefmt):
     #plot_rti(stm, 'bks', eTime=etm, bmnum=7, fileType=ftype, params=["velocity"],
     #          coords='rng', gsct=True, scales=scales, filtered=True)
 
-    list_of_clusters = cluster_data(myPtr, bmnum, params=["velocity"], tbands=None)
-    N = 1
-    return list_of_clusters
+    data_dict = read_data(myPtr, bmnum, params=params, tbands=None)
+
+    # cluster the data using depth_first_search algorithm
+
+    # cluster the data using breath_first_search algorithm
+    visited_nodes = search_tree(data_dict, (0, data_dict['slist'][0][0]))
 
 
-data = dopsearch(ctr_time, bmnum, localdirfmt, localdict, tmpdir, fnamefmt)
+    # change the gsflg 
+    for tpl in visited_nodes:
+        x1, x2 = tpl 
+        indx = data_dict['slist'][x1].index(x2)
+        data_dict['gsflg'][x1][indx] = 0 
+
+#    for x1 in range(len(data_dict["times"])):
+#        try:
+#            for x2 in range(len(data_dict["gsflg"][x1])):
+#                data_dict['gsflg'][x1][x2] = 0 
+#        except:
+#            continue
+
+    stm = ctr_time
+    etm = ctr_time + dt.timedelta(days=1)
+    fig = plot_rti(stm, "bks", eTime=etm, bmnum=7, data_dict=data_dict, gsct=True,
+            params=["velocity"], scales=[[-150, 150]], colors="aj")
+
+
+    plt.show()
+    return fig 
+
+
+
+data = dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
+
 
 #    #myPtr = radDataOpen(stime, rad, etime, channel=channel, bmnum=bmnum, fileType=ftype,
 #    #                    filtered=filtered, local_dirfmt=localdirfmt)

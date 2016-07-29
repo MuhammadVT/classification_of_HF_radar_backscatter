@@ -245,8 +245,13 @@ def search_tree(data, start, visited = None):
 def connect_clusters(clusters):
     pass
 
-def classify_event(cluster, data_dict):
+def change_gsflg(cluster, data_dict, gscat_value=0):
+    for tpl in cluster:
+        x1, x2 = tpl 
+        indx = data_dict['slist'][x1].index(x2)
+        data_dict['gsflg'][x1][indx] = gscat_value 
 
+def isevent(cluster, data_dict, vel_threshold=15.):
     import datetime as dt
     # convert cluster to list of lists
     tm_indices = sorted(list(set([x[0] for x in cluster])))
@@ -255,18 +260,54 @@ def classify_event(cluster, data_dict):
     stm = data_dict['times'][stm_indx]
     etm = data_dict['times'][etm_indx]
     tm_del = etm - stm
-    if tm_del < dt.timedelta(hours=1):
-        # change the gsflg values
-        for tpl in cluster:
-            x1, x2 = tpl 
-            indx = data_dict['slist'][x1].index(x2)
-            data_dict['gsflg'][x1][indx] = 1 
+    result = False
+    if tm_del <= dt.timedelta(hours=1):
+        pass
 
+    elif tm_del >= dt.timedelta(hours=14):
+        pass
     else:
-        for tpl in cluster:
-            x1, x2 = tpl 
-            indx = data_dict['slist'][x1].index(x2)
-            data_dict['gsflg'][x1][indx] = 0 
+        cluster_vels = [data_dict['vel'][item[0]][(data_dict['slist'][item[0]]).index(item[1])] \
+                for item in cluster]
+
+#        cluster_vels = [] 
+#        for item in cluster:
+#            try:
+#                vel_tmp = data_dict['vel'][item[0]][(data_dict['vel'][item[0]]).index(item[1])]
+#                cluster_vels.append(vel_tmp)
+#            except:
+#                print item
+        
+        high_vels_num = len([x for x in cluster_vels if abs(x) > vel_threshold])
+        low_vels_num = len(cluster_vels) - high_vels_num
+
+        # exclude the case where low_vels_num is 0
+        try:
+            high_to_low_ratio = (high_vels_num *1.0) / low_vels_num
+        except:
+            high_to_low_ratio = 10
+
+        if tm_del <= dt.timedelta(hours=2):
+            if high_to_low_ratio > 0.475:
+                result = True
+        elif tm_del <= dt.timedelta(hours=3):
+            if high_to_low_ratio > 0.33:
+                result = True
+        #elif tm_del < dt.timedelta(hours=14):
+        else :
+            if high_to_low_ratio > 0.2:
+                result = True
+
+    return result
+
+def classify_event(cluster, data_dict):
+
+    # change the gsflg values
+    event_logic = isevent(cluster, data_dict)
+    if event_logic:
+        change_gsflg(cluster, data_dict, gscat_value=0)
+    else:
+        change_gsflg(cluster, data_dict, gscat_value=1)
          
     
     # find the starting and ending time of a cluster

@@ -251,10 +251,114 @@ def change_gsflg(cluster, data_dict, gscat_value=0):
         indx = data_dict['slist'][x1].index(x2)
         data_dict['gsflg'][x1][indx] = gscat_value 
 
+def push_stm_etm(cluster, data_dict, vel_threshold=15.):
+    import datetime as dt
+    # write cluster as list of lists. Each list element stors the data for a given time
+    tm_indices = sorted(list(set([x[0] for x in cluster])))
+
+    # change cluster to a list of lists
+    cluster_lol = [[x for x in cluster if y==x[0]] for y in tm_indices]
+
+    # initialize the time indices
+    stm_indx = tm_indices[0]
+    etm_indx = tm_indices[-1]
+    stm = data_dict['times'][stm_indx]
+    etm = data_dict['times'][etm_indx]
+
+    # check the time duration
+    tm_del = etm - stm
+    if tm_del <= dt.timedelta(hours=1):
+        return cluster
+
+    gates_width = 4
+    update_stm = True
+    update_etm = True
+    #sleft_indx = stm_indx
+    #sright_indx = tm_indices[gates_width]
+    #eright_indx = etm_indx
+    #eleft_indx = tm_indices[-1-gates_width]
+
+    # initialize cluster_lol indices
+    sindx = 0
+    eindx = len(cluster_lol)-1 
+    for ii in xrange(len(tm_indices)):
+        # determine the starting time of the cluster 
+        if update_stm:
+            cluster_left = cluster_lol[0:ii+gates_width+1] if ii < gates_width \
+                    else cluster_lol[ii-gates_width:ii+gates_width+1]
+            # flatten cluster_left
+            cluster_left = [x for y in cluster_left for x in y]
+            
+            # get the velocities
+            vels_left = [data_dict['vel'][item[0]][(data_dict['slist'][item[0]]).index(item[1])] \
+                    for item in cluster_left]
+
+            high_vels_num_left = len([x for x in vels_left if abs(x) > vel_threshold])
+            low_vels_num_left = len(vels_left) - high_vels_num_left
+
+            # exclude the case where low_vels_num is 0
+            try:
+                high_to_low_ratio_left = (high_vels_num_left *1.0) / low_vels_num_left
+            except:
+                high_to_low_ratio_left = 10
+
+            # update the indices
+            if high_to_low_ratio_left <= 0.75:
+                #sleft_indx = tm_indices[0] if (ii<gates_width) else tm_indices[ii-gates_width]
+                sindx = ii+1
+                stm_indx = tm_indices[sindx] 
+                #sright_indx = tm_indices[ii+1+gates_width]
+            else:
+                update_stm = False 
+
+        # determine the ending time of the cluster 
+        if update_etm:
+            cluster_right = cluster_lol[-ii-gates_width-1:] if ii < gates_width+1 \
+                    else cluster_lol[-ii-gates_width-1:-ii+gates_width]
+            # flatten cluster_right
+            cluster_right = [x for y in cluster_right for x in y]
+
+            vels_right = [data_dict['vel'][item[0]][(data_dict['slist'][item[0]]).index(item[1])] \
+                    for item in cluster_right]
+
+            high_vels_num_right = len([x for x in vels_right if abs(x) > vel_threshold])
+            low_vels_num_right = len(vels_right) - high_vels_num_right
+
+            # exclude the case where low_vels_num is 0
+            try:
+                high_to_low_ratio_right = (high_vels_num_right *1.0) / low_vels_num_right
+            except:
+                high_to_low_ratio_right = 10
+
+            # update the indices
+            if high_to_low_ratio_right <= 0.75:
+                #eright_indx = tm_indices[-1] if (ii<gates_width+1) else tm_indices[-ii+gates_width]
+                eindx = eindx - ii - 1
+                etm_indx = tm_indices[eindx - ii - 1] 
+                #eleft_indx = tm_indices[-ii-gates_width-1]
+            else:
+                update_etm = False 
+
+
+        # check the time duration of the cluster
+        stm = data_dict['times'][stm_indx]
+        etm = data_dict['times'][etm_indx]
+        tm_del = etm - stm
+        if tm_del <= dt.timedelta(hours=1):
+            break
+
+    # update cluster_lol
+    cluster_lol = cluster_lol[sindx:eindx+1]
+    # flatten cluster_lol and convert to a set
+    cluster = set([x for y in cluster_lol for x in y])
+
+    return cluster
+
 def isevent(cluster, data_dict, vel_threshold=15.):
     import datetime as dt
-    # convert cluster to list of lists
+    # find time indices
     tm_indices = sorted(list(set([x[0] for x in cluster])))
+
     stm_indx = tm_indices[0]
     etm_indx = tm_indices[-1]
     stm = data_dict['times'][stm_indx]
@@ -270,14 +374,6 @@ def isevent(cluster, data_dict, vel_threshold=15.):
         cluster_vels = [data_dict['vel'][item[0]][(data_dict['slist'][item[0]]).index(item[1])] \
                 for item in cluster]
 
-#        cluster_vels = [] 
-#        for item in cluster:
-#            try:
-#                vel_tmp = data_dict['vel'][item[0]][(data_dict['vel'][item[0]]).index(item[1])]
-#                cluster_vels.append(vel_tmp)
-#            except:
-#                print item
-        
         high_vels_num = len([x for x in cluster_vels if abs(x) > vel_threshold])
         low_vels_num = len(cluster_vels) - high_vels_num
 
@@ -388,18 +484,22 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 
 
 
-    cluster_list = []
+    clusters = []
     start_node = find_start_node(nodes, visited_nodes=None)
     while start_node:
-        visited_nodes = search_tree(nodes, start_node)
-        cluster_list.append(visited_nodes)
+        visited_nodes = search_tree(nodes, start_node)    # returns a set
+        clusters.append(visited_nodes)
         start_node = find_start_node(nodes,
-                                     visited_nodes=set([x for y in cluster_list for x in y]))
+                                     visited_nodes=set([x for y in clusters for x in y]))
 
-    #visited_nodes=set([x for y in cluster_list for x in y])
+    #visited_nodes=set([x for y in clusters for x in y])
 
-
-    for cluster in cluster_list:
+    # pul all the clusters classified as events 
+    print len(clusters)
+    for cluster in clusters:
+        
+        # find the starting and ending times of a cluster
+        cluster = push_stm_etm(cluster, data_dict, vel_threshold=15.)
         classify_event(cluster, data_dict)
 
     #start_node = nodes[0][0]
@@ -411,11 +511,6 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 #    nodes_tmp = [[x for x in nodes_flat if y==x[0]] for y in tm_indices]
 
 
-#    for sublist in nodes:
-#        for itm in sublist:
-#            if itm[1] >=7 and (itm not in visited_nodes):
-#                start_node = itm
-#            break
 #    print start_node in visited_nodes
 #    visited_nodes_tmp = search_tree(nodes, start_node, visited = visited_nodes)
 #
@@ -448,7 +543,7 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 
 
 import pdb
-data_dict, visited_nodes, nodes = dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
+data_dict, clusters, nodes = dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 
 
 #    #myPtr = radDataOpen(stime, rad, etime, channel=channel, bmnum=bmnum, fileType=ftype,

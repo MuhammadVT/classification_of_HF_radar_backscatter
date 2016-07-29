@@ -195,31 +195,17 @@ def create_graph(vertex, data):
     else:
         xx = [vertex[0] + yi for yi in [-1, 0, 1]]  # time indices centered at the time index of the vertex 
 
-    forward = 1
-#    backward = 0
-    if forward:
-        tm_indx = vertex[0]
-        if tm_indx == 0:
-            xx = [0, 1]  # time indices centered at the time index of the vertex 
-        elif tm_indx == len(data['times'])-1:
-            xx = [tm_indx, tm_indx-1]  # time indices centered at the time index of the vertex 
-#            forward = 0
-#            backward = 1
-        else:   
-            xx = [vertex[0] + yi for yi in [-1, 0, 1]]  # time indices centered at the time index of the vertex 
-#    if backward:
-#        if tm_indx == len(data['time'])-1:
-#            xx = [tm_indx, tm_indx-1]  # time indices centered at the time index of the vertex 
-#        elif tm_indx == 0:
-#            xx = [0, 1]  # time indices centered at the time index of the vertex 
-#            backward = 0
-#            forward = 1
-#        else:
-#            xx = [vertex[0] + yi for yi in [-1, 0, 1]]  # time indices centered at the time index of the vertex 
+    tm_indx = vertex[0]
+    if tm_indx == 0:
+        xx = [0, 1]  # time indices centered at the time index of the vertex 
+    elif tm_indx == len(data)-1:
+        xx = [tm_indx, tm_indx-1]  # time indices centered at the time index of the vertex 
+    else:   
+        xx = [vertex[0] + yi for yi in [-1, 0, 1]]  # time indices centered at the time index of the vertex 
     yy = [vertex[1] + yi for yi in [-1, 0, 1]]  #range-gate indices centered at the range-gate index of the vertex 
 
     # create a tuple that inclues actual neighbering vortice
-    xy = [(i,j) for i in xx for j in set(data['slist'][i]).intersection(set(yy))] 
+    xy = [(i,j) for i in xx for j in set([x[1] for x in data[i]]).intersection(set(yy))] 
     xy.remove(vertex)    # remove the vertex from xy 
     nodes = set()
     for tpl in xy:
@@ -228,19 +214,24 @@ def create_graph(vertex, data):
     return G
 
 
-def search_tree(data, start):
+def search_tree(data, start, visited = None):
 
     # create a grash as a start
     G = create_graph(start, data)
     # do the breath_firt_search
-    visited, queue = set(), [start]
+    if visited is None:
+        visited = set()
+    queue = [start]
     while queue:
         vertex = queue.pop(0)
         if vertex[1] < 7: 
             continue
         if vertex not in visited:
             visited.add(vertex)
-            queue.extend(G[vertex] - visited)
+            try:
+                queue.extend(G[vertex] - visited)
+            except:
+                return visited
         try:
             next_node = queue[0]
             G = create_graph(next_node, data)
@@ -248,14 +239,44 @@ def search_tree(data, start):
             pass
     return visited
 
-#def classify_even():
+def classify_event(cluster, data_dict):
+
+    import datetime as dt
+    # convert cluster to list of lists
+    tm_indices = sorted(list(set([x[0] for x in cluster])))
+    stm_indx = tm_indices[0]
+    etm_indx = tm_indices[-1]
+    stm = data_dict['times'][stm_indx]
+    etm = data_dict['times'][etm_indx]
+    tm_del = etm - stm
+    if tm_del < dt.timedelta(hours=1):
+        # change the gsflg values
+        for tpl in cluster:
+            x1, x2 = tpl 
+            indx = data_dict['slist'][x1].index(x2)
+            data_dict['gsflg'][x1][indx] = 1 
+
+    else:
+        for tpl in cluster:
+            x1, x2 = tpl 
+            indx = data_dict['slist'][x1].index(x2)
+            data_dict['gsflg'][x1][indx] = 0 
+         
+    
+    # find the starting and ending time of a cluster
+    #while True:
+
+    #cluster = [[x for x in cluster if x[0]==y] for y in tm_indices]
+#    return cluster
+    
 
 def create_nodes(data_dict):
-    """ Create nodes using time indices and gate numbers from the data_dict.
+    """ Create nodes using time indices and gate numbers from the data_dict. 
+    Nondes are list of lists. Each list element is a collection of nodes for a given time_index
     A node is a range-gate cell in the rti plot.
     """
 
-    nodes = [(x,y) for x in xrange(len(data_dict['times'])) for y in data_dict['slist'][x]]
+    nodes = [[(x,y) for y in data_dict['slist'][x]] for x in xrange(len(data_dict['times']))]
 
     return nodes
 
@@ -295,17 +316,68 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 
     data_dict = read_data(myPtr, bmnum, params=params, tbands=None)
 
+    # create nodes from data_dict. Each node is represented by (time_index, gate_number)
+    nodes = create_nodes(data_dict)
+
     # cluster the data using depth_first_search algorithm
 
     # cluster the data using breath_first_search algorithm
-    visited_nodes = search_tree(data_dict, (0, data_dict['slist'][0][0]))
 
 
-    # change the gsflg 
-    for tpl in visited_nodes:
-        x1, x2 = tpl 
-        indx = data_dict['slist'][x1].index(x2)
-        data_dict['gsflg'][x1][indx] = 0 
+    def find_start_node(nodes, visited_nodes=None):
+
+        if visited_nodes is None:
+            visited_nodes = set()
+        start_node = None
+        for sublist in nodes:
+            for itm in sublist:
+                if itm[1] >=7 and (itm not in visited_nodes):
+                    start_node = itm
+                    break
+            if start_node is not None:
+                break
+        return start_node
+
+
+    cluster_list = []
+    start_node = find_start_node(nodes, visited_nodes=None)
+    while start_node:
+        visited_nodes = search_tree(nodes, start_node)
+        cluster_list.append(visited_nodes)
+        start_node = find_start_node(nodes,
+                                     visited_nodes=set([x for y in cluster_list for x in y]))
+
+    #visited_nodes=set([x for y in cluster_list for x in y])
+
+
+    for cluster in cluster_list:
+        classify_event(cluster, data_dict)
+    #start_node = nodes[0][0]
+    #start_node = (400, 11)
+    #visited_nodes = search_tree(nodes, start_node)
+
+#    nodes_flat = list(set([x for y in nodes for x in y]) - visited_nodes)
+#    tm_indices = list(set([x[0] for x in nodes_flat]))
+#    nodes_tmp = [[x for x in nodes_flat if y==x[0]] for y in tm_indices]
+
+
+#    for sublist in nodes:
+#        for itm in sublist:
+#            if itm[1] >=7 and (itm not in visited_nodes):
+#                start_node = itm
+#            break
+#    print start_node in visited_nodes
+#    visited_nodes_tmp = search_tree(nodes, start_node, visited = visited_nodes)
+#
+#    #visited_nodes = visited_nodes.union(search_tree(nodes, nodes[0][0]))
+#    #print visited_nodes - visited_nodes_tmp
+#    visited_nodes = visited_nodes.union(visited_nodes_tmp)
+
+#    # change the gsflg 
+#    for tpl in visited_nodes:
+#        x1, x2 = tpl 
+#        indx = data_dict['slist'][x1].index(x2)
+#        data_dict['gsflg'][x1][indx] = 0 
 
 #    for x1 in range(len(data_dict["times"])):
 #        try:
@@ -317,15 +389,15 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
     stm = ctr_time
     etm = ctr_time + dt.timedelta(days=1)
     fig = plot_rti(stm, "bks", eTime=etm, bmnum=7, data_dict=data_dict, gsct=True,
-            params=["velocity"], scales=[[-150, 150]], colors="aj")
+            params=["velocity"], scales=[[-120, 120]], colors="aj")
 
 
     plt.show()
-    return fig 
+    return data_dict, visited_nodes, nodes 
 
 
 
-data = dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
+data_dict, visited_nodes, nodes = dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 
 
 #    #myPtr = radDataOpen(stime, rad, etime, channel=channel, bmnum=bmnum, fileType=ftype,

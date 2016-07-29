@@ -225,19 +225,25 @@ def search_tree(data, start, visited = None):
     while queue:
         vertex = queue.pop(0)
         if vertex[1] < 7: 
+            next_node = queue[0]
+            G = create_graph(next_node, data)
             continue
         if vertex not in visited:
             visited.add(vertex)
-            try:
-                queue.extend(G[vertex] - visited)
-            except:
-                return visited
+            #try:
+            #    pdb.set_trace()
+            queue.extend(G[vertex] - visited)
+            #except:
+                #return visited
         try:
             next_node = queue[0]
             G = create_graph(next_node, data)
         except:
             pass
     return visited
+
+def connect_clusters(clusters):
+    pass
 
 def classify_event(cluster, data_dict):
 
@@ -280,6 +286,21 @@ def create_nodes(data_dict):
 
     return nodes
 
+def find_start_node(nodes, visited_nodes=None):
+
+    if visited_nodes is None:
+        visited_nodes = set()
+    start_node = None
+    for sublist in nodes:
+        for itm in sublist:
+            if itm[1] >=7 and (itm not in visited_nodes):
+                start_node = itm
+                break
+        if start_node is not None:
+            break
+    return start_node
+
+
 def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt):
 
     # fetch and concatenate the three consecutive days of data centered on the target date 
@@ -290,8 +311,8 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 
     ffname = "./data/20100114.000000.20100116.000000.bks.fitacff"
 
-    import sys
-    sys.path.append("/home/muhammad/softwares/davitpy_MuhammadVT/davitpy/pydarn/plotting/")
+    #import sys
+    #sys.path.append("/home/muhammad/softwares/davitpy_MuhammadVT/davitpy/pydarn/plotting/")
     #from rti import plot_rti
     from myrti import plot_rti
 
@@ -324,19 +345,6 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
     # cluster the data using breath_first_search algorithm
 
 
-    def find_start_node(nodes, visited_nodes=None):
-
-        if visited_nodes is None:
-            visited_nodes = set()
-        start_node = None
-        for sublist in nodes:
-            for itm in sublist:
-                if itm[1] >=7 and (itm not in visited_nodes):
-                    start_node = itm
-                    break
-            if start_node is not None:
-                break
-        return start_node
 
 
     cluster_list = []
@@ -352,8 +360,9 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 
     for cluster in cluster_list:
         classify_event(cluster, data_dict)
+
     #start_node = nodes[0][0]
-    #start_node = (400, 11)
+    #start_node = (1349, 7)
     #visited_nodes = search_tree(nodes, start_node)
 
 #    nodes_flat = list(set([x for y in nodes for x in y]) - visited_nodes)
@@ -397,6 +406,7 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 
 
 
+import pdb
 data_dict, visited_nodes, nodes = dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 
 

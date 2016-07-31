@@ -395,15 +395,6 @@ def isevent(cluster, data_dict, vel_threshold=15.):
                 result = True
 
     return result
-
-def classify_event(cluster, data_dict):
-
-    # change the gsflg values
-    event_logic = isevent(cluster, data_dict)
-    if event_logic:
-        change_gsflg(cluster, data_dict, gscat_value=0)
-    else:
-        change_gsflg(cluster, data_dict, gscat_value=1)
          
     
     # find the starting and ending time of a cluster
@@ -495,12 +486,24 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
     #visited_nodes=set([x for y in clusters for x in y])
 
     # pul all the clusters classified as events 
-    print len(clusters)
+    all_iscat = set([])
     for cluster in clusters:
         
         # find the starting and ending times of a cluster
-        cluster = push_stm_etm(cluster, data_dict, vel_threshold=15.)
-        classify_event(cluster, data_dict)
+        #cluster = push_stm_etm(cluster, data_dict, vel_threshold=15.)
+
+        # classify the cluster
+        event_logic = isevent(cluster, data_dict)
+        if event_logic:
+            # change the gsflg values to 0(isact)
+            change_gsflg(cluster, data_dict, gscat_value=0)
+            all_iscat.update(cluster)
+
+    nodes_flat = set([x for y in nodes for x in y])
+    all_gscat = set(nodes_flat) - all_iscat
+    # change the gsflg values to 1(gsact)
+    change_gsflg(all_gscat, data_dict, gscat_value=1)
+
 
     #start_node = nodes[0][0]
     #start_node = (1349, 7)
@@ -518,18 +521,6 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 #    #print visited_nodes - visited_nodes_tmp
 #    visited_nodes = visited_nodes.union(visited_nodes_tmp)
 
-#    # change the gsflg 
-#    for tpl in visited_nodes:
-#        x1, x2 = tpl 
-#        indx = data_dict['slist'][x1].index(x2)
-#        data_dict['gsflg'][x1][indx] = 0 
-
-#    for x1 in range(len(data_dict["times"])):
-#        try:
-#            for x2 in range(len(data_dict["gsflg"][x1])):
-#                data_dict['gsflg'][x1][x2] = 0 
-#        except:
-#            continue
 
     stm = ctr_time
     etm = ctr_time + dt.timedelta(days=1)

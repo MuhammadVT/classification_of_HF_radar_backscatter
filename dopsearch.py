@@ -8,22 +8,6 @@ import os
 import string
 import matplotlib.pyplot as plt
 
-# input parameters
-ctr_time = dt.datetime(2010,1,15)
-rad = "bks"
-channel = None
-bmnum = 7
-params=['velocity']
-ftype = "fitacf"
-filtered = True
-scr = "local"
-localdirfmt = "/sd-data/{year}/{ftype}/{radar}/"
-localdict = {"ftype" : "fitacf", "radar" : "bks", "channel" : None}
-tmpdir = "/tmp/sd/"
-fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', '{date}.{hour}......{radar}.{ftype}']
-#davitpy.rcParams['verbosity'] = "debug"
-
-
 def fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
     
     # expend the time to three days
@@ -93,6 +77,17 @@ def boxcar_filter(fname):
 
 
     return ffname
+
+def prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
+
+    # fetch and concatenate the three consecutive days of data centered on the target date 
+    concated_file = fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
+
+    # box car fiter the data
+    ffname = boxcar_filter(concated_file)
+
+    return ffname
+
 
 def read_data(myPtr, bmnum, params=["velocity"], tbands=None):
     """Reads data from the file pointed to by myPtr
@@ -436,44 +431,21 @@ def find_start_node(nodes, visited_nodes=None):
             break
     return start_node
 
-
-def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt):
-
-    # fetch and concatenate the three consecutive days of data centered on the target date 
-    #concated_file = fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
-
-    # box car fiter the data
-    #ffname = boxcar_filter(concated_file)
-
-    ffname = "./data/20100114.000000.20100116.000000.bks.fitacff"
-
-    #import sys
-    #sys.path.append("/home/muhammad/softwares/davitpy_MuhammadVT/davitpy/pydarn/plotting/")
-    #from rti import plot_rti
-    from myrti import plot_rti
+def read_file(ffname, rad, ctr_time, bmnum, params, ftype="fitacf"):
 
     #stm = ctr_time - dt.timedelta(days=1)
     stm = ctr_time
     etm = ctr_time + dt.timedelta(days=1)
 
-    #plot_rti(stm, "bks", eTime=etm, bmnum=7)
-    #plot_rti(stm, "bks", eTime=etm, bmnum=7, fileName=ffname)
-    #plot_rti(dt.datetime(2013,3,16), 'bks', eTime=dt.datetime(2013,3,16,14,30), bmnum=12)
-
-    ftype = "fitacf"
-    scales = [[-120, 120]]
-    #ftype = "fitex"
     #myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=bmnum, cp=153,
-    myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=bmnum,
+    myPtr = radDataOpen(stm, rad, eTime=etm, bmnum=bmnum,
                         fileName=ffname, fileType=ftype)
-    #myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=7, fileType="fitacf")
-    #plot_rti(stm, 'bks', eTime=etm, bmnum=7, fileType=ftype, myFile=myPtr,
-    #         fileName=ffname, params=["velocity"], coords='rng', gsct=True, scales=scales)
-
-    #plot_rti(stm, 'bks', eTime=etm, bmnum=7, fileType=ftype, params=["velocity"],
-    #          coords='rng', gsct=True, scales=scales, filtered=True)
-
     data_dict = read_data(myPtr, bmnum, params=params, tbands=None)
+
+    return data_dict 
+
+def dopsearch(data_dict, ctr_time, bmnum, params):
+
 
     # create nodes, whic is a list of lists, from data_dict.
     # Each node is represented by (time_index, gate_number)
@@ -481,11 +453,7 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 
     # cluster the data using depth_first_search algorithm
 
-    # cluster the data using breath_first_search algorithm
-
-
-
-    #pdb.set_trace() 
+    # cluster the data
     clusters = []
     visited_nodes_all = set() 
     start_node = find_start_node(nodes, visited_nodes=None)
@@ -498,7 +466,6 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
         #visited_nodes_all = set([x for y in clusters for x in y])
         start_node = find_start_node(nodes, visited_nodes=visited_nodes_all)
 
-    #visited_nodes=set([x for y in clusters for x in y])
 
     # pul all the clusters classified as events 
     all_iscat = set([])
@@ -520,41 +487,58 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
     # change the gsflg values to 1(gsact)
     change_gsflg(all_gscat, data_dict, gscat_value=1)
 
+    #return data_dict, clusters, nodes 
+    return data_dict 
 
-#    nodes_flat = list(set([x for y in nodes for x in y]) - visited_nodes)
-#    tm_indices = list(set([x[0] for x in nodes_flat]))
-#    nodes_tmp = [[x for x in nodes_flat if y==x[0]] for y in tm_indices]
 
-    stm = ctr_time
-    etm = ctr_time + dt.timedelta(days=1)
+def rtiplot(data_dict, rad, ctr_time, bmnum, params):
+
+    from myrti import plot_rti
+
     #stm = dt.datetime(2010,1,15, 12)
     #etm = dt.datetime(2010,1,15, 14)
+    stm = ctr_time
+    etm = ctr_time + dt.timedelta(days=1)
+
+    scales = [[-120, 120]]
+    yrng = [0, 70]
     #fig = plot_rti(stm, "bks", eTime=etm, bmnum=7, gsct=True,
     #        params=["velocity"], scales=[[-120, 120]], colors="aj", yrng=[0, 70])
-    fig = plot_rti(stm, "bks", eTime=etm, bmnum=bmnum, data_dict=data_dict, gsct=True,
-            params=["velocity"], scales=[[-120, 120]], colors="aj", yrng=[0, 70])
+    fig = plot_rti(stm, rad, eTime=etm, bmnum=bmnum, data_dict=data_dict, gsct=True,
+            params=params, scales=scales, colors="aj", yrng=yrng)
 
 
     plt.show()
-    return data_dict, clusters, nodes 
+    return fig 
 
-
-
+# run the code
 import pdb
-data_dict, clusters, nodes = dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 
+# input parameters
+ctr_time = dt.datetime(2010,1,15)
+rad = "bks"
+channel = None
+bmnum = 7
+params=['velocity']
+ftype = "fitacf"
+filtered = True
+scr = "local"
+localdirfmt = "/sd-data/{year}/{ftype}/{radar}/"
+localdict = {"ftype" : "fitacf", "radar" : "bks", "channel" : None}
+tmpdir = "/tmp/sd/"
+fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', '{date}.{hour}......{radar}.{ftype}']
+#davitpy.rcParams['verbosity'] = "debug"
 
-#    #myPtr = radDataOpen(stime, rad, etime, channel=channel, bmnum=bmnum, fileType=ftype,
-#    #                    filtered=filtered, local_dirfmt=localdirfmt)
-#
-#    myPtr = radDataPtr(stime, rad, etime, channel=channel, bmnum=bmnum, fileType=ftype,
-#                        filtered=filtered, local_dirfmt=localdirfmt)
-#
+# prepare the data
+#ffname = prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
+ffname = "./data/20100114.000000.20100116.000000.bks.fitacff"
 
-#concated_file = fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
-#ffname = boxcar_filter(concated_file)
+# read the file
+data_dict = read_file(ffname, rad, ctr_time, bmnum, params, ftype=ftype)
 
-#from davitpy.pydarn.plotting import plot_rti
+#data_dict, clusters, nodes = dopsearch(ffname, ctr_time, bmnum, params)
+data_dict = dopsearch(data_dict, ctr_time, bmnum, params)
 
-
+# make an rti plot
+fig = rtiplot(data_dict, rad, ctr_time, bmnum, params)
 

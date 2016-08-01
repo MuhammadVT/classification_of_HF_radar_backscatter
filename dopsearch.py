@@ -556,8 +556,8 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
     etm = ctr_time + dt.timedelta(days=1)
     #stm = dt.datetime(2010,1,15, 12)
     #etm = dt.datetime(2010,1,15, 14)
-    #fig = plot_rti(stm, "bks", eTime=etm, bmnum=7, gsct=False,
-            #params=["velocity"], scales=[[-45, 45]], colors="aj")
+    #fig = plot_rti(stm, "bks", eTime=etm, bmnum=7, gsct=True,
+    #        params=["velocity"], scales=[[-120, 120]], colors="aj")
     fig = plot_rti(stm, "bks", eTime=etm, bmnum=7, data_dict=data_dict, gsct=True,
             params=["velocity"], scales=[[-120, 120]], colors="aj")
 

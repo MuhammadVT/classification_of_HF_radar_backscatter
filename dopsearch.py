@@ -143,14 +143,6 @@ def read_data(myPtr, bmnum, params=["velocity"], tbands=None):
     # Read the parameters of interest.
     myPtr.rewind()
     myBeam = myPtr.readRec()
-
-
-#    xx = 0
-#    stack = []
-#    visited = set()
-#    if (myBeam is not None):
-#        stack.append((xx, myBeam.fit.slist[0]))
-
     while(myBeam is not None):
         if(myBeam.time > myPtr.eTime): break
         if(myBeam.bmnum == bmnum and (myPtr.sTime <= myBeam.time)):
@@ -220,10 +212,6 @@ def search_tree(data, start, data_dict):
     queue = [start]
     while queue:
         vertex = queue.pop(0)
-#        if vertex[1] < 7: 
-#            next_node = queue[0]
-#            G = create_graph(next_node, data)
-#            continue
 
         if (vertex[1] >= 7) and (vertex not in visited):
             visited.add(vertex)
@@ -295,10 +283,6 @@ def push_stm_etm(cluster, data_dict, vel_threshold=15.):
     gates_width = 4
     update_stm = True
     update_etm = True
-    #sleft_indx = stm_indx
-    #sright_indx = tm_indices[gates_width]
-    #eright_indx = etm_indx
-    #eleft_indx = tm_indices[-1-gates_width]
 
     # initialize cluster_lol indices
     sindx = 0
@@ -535,22 +519,9 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
     change_gsflg(all_gscat, data_dict, gscat_value=1)
 
 
-    #start_node = nodes[0][0]
-    #start_node = (1349, 7)
-    #visited_nodes = search_tree(nodes, start_node, data_dict)
-
 #    nodes_flat = list(set([x for y in nodes for x in y]) - visited_nodes)
 #    tm_indices = list(set([x[0] for x in nodes_flat]))
 #    nodes_tmp = [[x for x in nodes_flat if y==x[0]] for y in tm_indices]
-
-
-#    print start_node in visited_nodes
-#    visited_nodes_tmp = search_tree(nodes, start_node, data_dict)
-#
-#    #visited_nodes = visited_nodes.union(search_tree(nodes, nodes[0][0], data_dict))
-#    #print visited_nodes - visited_nodes_tmp
-#    visited_nodes = visited_nodes.union(visited_nodes_tmp)
-
 
     stm = ctr_time
     etm = ctr_time + dt.timedelta(days=1)
@@ -558,7 +529,7 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
     #etm = dt.datetime(2010,1,15, 14)
     #fig = plot_rti(stm, "bks", eTime=etm, bmnum=7, gsct=True,
     #        params=["velocity"], scales=[[-120, 120]], colors="aj")
-    fig = plot_rti(stm, "bks", eTime=etm, bmnum=7, data_dict=data_dict, gsct=True,
+    fig = plot_rti(stm, "bks", eTime=etm, bmnum=bmnum, data_dict=data_dict, gsct=True,
             params=["velocity"], scales=[[-120, 120]], colors="aj")
 
 

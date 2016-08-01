@@ -463,7 +463,9 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
     ftype = "fitacf"
     scales = [[-120, 120]]
     #ftype = "fitex"
-    myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=bmnum, fileName=ffname, fileType=ftype)
+    #myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=bmnum, cp=153,
+    myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=bmnum,
+                        fileName=ffname, fileType=ftype)
     #myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=7, fileType="fitacf")
     #plot_rti(stm, 'bks', eTime=etm, bmnum=7, fileType=ftype, myFile=myPtr,
     #         fileName=ffname, params=["velocity"], coords='rng', gsct=True, scales=scales)
@@ -528,9 +530,9 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
     #stm = dt.datetime(2010,1,15, 12)
     #etm = dt.datetime(2010,1,15, 14)
     #fig = plot_rti(stm, "bks", eTime=etm, bmnum=7, gsct=True,
-    #        params=["velocity"], scales=[[-120, 120]], colors="aj")
+    #        params=["velocity"], scales=[[-120, 120]], colors="aj", yrng=[0, 70])
     fig = plot_rti(stm, "bks", eTime=etm, bmnum=bmnum, data_dict=data_dict, gsct=True,
-            params=["velocity"], scales=[[-120, 120]], colors="aj")
+            params=["velocity"], scales=[[-120, 120]], colors="aj", yrng=[0, 70])
 
 
     plt.show()

@@ -232,8 +232,9 @@ def search_tree(data, start, data_dict):
             next_node = queue[0]
             G = create_graph(next_node, data)
         except:
+
             end_indx = max([x[0] for x in visited])
-            gates_tmp = [x[1] for x in data[end_indx]]
+            gates_tmp = [x[1] for x in visited if x[0]==end_indx]
             possible_gates = set([x for y in gates_tmp \
                                 for x in [y-1, y, y+1]])
 
@@ -241,7 +242,7 @@ def search_tree(data, start, data_dict):
             end_tm = data_dict['times'][end_indx]
             del_time = 0
 
-
+            #pdb.set_trace()
             while del_time<6.0:
             #while k<=6:
                 # use try-except to avoid hitting the end of time indices 
@@ -337,6 +338,7 @@ def push_stm_etm(cluster, data_dict, vel_threshold=15.):
         if update_etm:
             cluster_right = cluster_lol[-ii-gates_width-1:] if ii < gates_width+1 \
                     else cluster_lol[-ii-gates_width-1:-ii+gates_width]
+
             # flatten cluster_right
             cluster_right = [x for y in cluster_right for x in y]
 
@@ -355,7 +357,7 @@ def push_stm_etm(cluster, data_dict, vel_threshold=15.):
             # update the indices
             if high_to_low_ratio_right <= 0.75:
                 #eright_indx = tm_indices[-1] if (ii<gates_width+1) else tm_indices[-ii+gates_width]
-                eindx = eindx - ii - 1
+                eindx = (len(cluster_lol)-1) - ii - 1
                 etm_indx = tm_indices[eindx - ii - 1] 
                 #eleft_indx = tm_indices[-ii-gates_width-1]
             else:
@@ -441,7 +443,6 @@ def find_start_node(nodes, visited_nodes=None):
     if visited_nodes is None:
         visited_nodes = set()
     start_node = None
-    pdb.set_trace()
     for sublist in nodes:
         for itm in sublist:
             if itm[1] >=7 and (itm not in visited_nodes):
@@ -498,26 +499,24 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
 
 
 
-
+    #pdb.set_trace() 
     clusters = []
     visited_nodes_all = set() 
     start_node = find_start_node(nodes, visited_nodes=None)
+    #start_node = (384, 14)
     while start_node:
         #print start_node
         visited_nodes = search_tree(nodes, start_node, data_dict)    # returns a set
         clusters.append(visited_nodes)
         visited_nodes_all.update(visited_nodes) 
         #visited_nodes_all = set([x for y in clusters for x in y])
-        if len(clusters) == 3:
-            break
-        start_node = find_start_node(nodes,
-                                     visited_nodes=visited_nodes_all)
-    clusters = [clusters[2]]
+        start_node = find_start_node(nodes, visited_nodes=visited_nodes_all)
 
     #visited_nodes=set([x for y in clusters for x in y])
 
     # pul all the clusters classified as events 
     all_iscat = set([])
+    #for cluster in [clusters[2]]:
     for cluster in clusters:
         
         # find the starting and ending times of a cluster
@@ -557,7 +556,8 @@ def dopsearch(ctr_time, bmnum, params, localdirfmt, localdict, tmpdir, fnamefmt)
     etm = ctr_time + dt.timedelta(days=1)
     #stm = dt.datetime(2010,1,15, 12)
     #etm = dt.datetime(2010,1,15, 14)
-    #fig = plot_rti(stm, "bks", eTime=etm, bmnum=7, gsct=True,
+    #fig = plot_rti(stm, "bks", eTime=etm, bmnum=7, gsct=False,
+            #params=["velocity"], scales=[[-45, 45]], colors="aj")
     fig = plot_rti(stm, "bks", eTime=etm, bmnum=7, data_dict=data_dict, gsct=True,
             params=["velocity"], scales=[[-120, 120]], colors="aj")
 

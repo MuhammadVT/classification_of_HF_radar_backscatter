@@ -175,6 +175,44 @@ def read_data(myPtr, bmnum, params=["velocity"], tbands=None):
 
     return data
 
+def read_file(ffname, rad, ctr_time, bmnum, params, ftype="fitacf"):
+
+    #stm = ctr_time - dt.timedelta(days=1)
+    stm = ctr_time
+    etm = ctr_time + dt.timedelta(days=1)
+
+    #myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=bmnum, cp=153,
+    myPtr = radDataOpen(stm, rad, eTime=etm, bmnum=bmnum,
+                        fileName=ffname, fileType=ftype)
+    data_dict = read_data(myPtr, bmnum, params=params, tbands=None)
+
+    return data_dict 
+
+def create_nodes(data_dict):
+    """ Create nodes using time indices and gate numbers from the data_dict. 
+    Nondes are list of lists. Each list element is a collection of nodes for a given time_index
+    A node is a range-gate cell in the rti plot.
+    """
+
+    nodes = [[(x,y) for y in data_dict['slist'][x]] for x in xrange(len(data_dict['times']))]
+
+    return nodes
+
+def find_start_node(nodes, visited_nodes=None):
+
+    if visited_nodes is None:
+        visited_nodes = set()
+    start_node = None
+    for sublist in nodes:
+        for itm in sublist:
+            if itm[1] >=7 and (itm not in visited_nodes):
+                start_node = itm
+                break
+        if start_node is not None:
+            break
+    return start_node
+
+
 def create_graph(vertex, data):
     """ all nodes should be fed to data argument """
 
@@ -247,14 +285,7 @@ def search_tree(data, start, data_dict):
                     
     return visited
 
-def connect_clusters(clusters):
-    pass
 
-def change_gsflg(cluster, data_dict, gscat_value=0):
-    for tpl in cluster:
-        x1, x2 = tpl 
-        indx = data_dict['slist'][x1].index(x2)
-        data_dict['gsflg'][x1][indx] = gscat_value 
 
 def push_stm_etm(cluster, data_dict, vel_threshold=15.):
     import datetime as dt
@@ -407,42 +438,13 @@ def isevent(cluster, data_dict, vel_threshold=15.):
 #    return cluster
     
 
-def create_nodes(data_dict):
-    """ Create nodes using time indices and gate numbers from the data_dict. 
-    Nondes are list of lists. Each list element is a collection of nodes for a given time_index
-    A node is a range-gate cell in the rti plot.
-    """
+def change_gsflg(cluster, data_dict, gscat_value=0):
+    for tpl in cluster:
+        x1, x2 = tpl 
+        indx = data_dict['slist'][x1].index(x2)
+        data_dict['gsflg'][x1][indx] = gscat_value 
 
-    nodes = [[(x,y) for y in data_dict['slist'][x]] for x in xrange(len(data_dict['times']))]
 
-    return nodes
-
-def find_start_node(nodes, visited_nodes=None):
-
-    if visited_nodes is None:
-        visited_nodes = set()
-    start_node = None
-    for sublist in nodes:
-        for itm in sublist:
-            if itm[1] >=7 and (itm not in visited_nodes):
-                start_node = itm
-                break
-        if start_node is not None:
-            break
-    return start_node
-
-def read_file(ffname, rad, ctr_time, bmnum, params, ftype="fitacf"):
-
-    #stm = ctr_time - dt.timedelta(days=1)
-    stm = ctr_time
-    etm = ctr_time + dt.timedelta(days=1)
-
-    #myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=bmnum, cp=153,
-    myPtr = radDataOpen(stm, rad, eTime=etm, bmnum=bmnum,
-                        fileName=ffname, fileType=ftype)
-    data_dict = read_data(myPtr, bmnum, params=params, tbands=None)
-
-    return data_dict 
 
 def dopsearch(data_dict, ctr_time, bmnum, params):
 

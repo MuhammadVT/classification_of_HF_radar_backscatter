@@ -493,21 +493,18 @@ def dopsearch(data_dict, ctr_time, bmnum, params):
     return data_dict 
 
 
-def rtiplot(data_dict, rad, ctr_time, bmnum, params):
+def rtiplot(rad, stm, etm, bmnum, params, data_dict=None, fileType="fitacf"):
 
     from myrti import plot_rti
 
-    #stm = dt.datetime(2010,1,15, 12)
-    #etm = dt.datetime(2010,1,15, 14)
-    stm = ctr_time
-    etm = ctr_time + dt.timedelta(days=1)
-
     scales = [[-120, 120]]
     yrng = [0, 70]
+    filtered=False
     #fig = plot_rti(stm, "bks", eTime=etm, bmnum=7, gsct=True,
     #        params=["velocity"], scales=[[-120, 120]], colors="aj", yrng=[0, 70])
     fig = plot_rti(stm, rad, eTime=etm, bmnum=bmnum, data_dict=data_dict, gsct=True,
-            params=params, scales=scales, colors="aj", yrng=yrng)
+            params=params, scales=scales, colors="aj", yrng=yrng, fileType=fileType,
+            filtered=filtered)
 
 
     plt.show()
@@ -517,23 +514,27 @@ def rtiplot(data_dict, rad, ctr_time, bmnum, params):
 import pdb
 
 # input parameters
-ctr_time = dt.datetime(2010,1,15)
+#ctr_time = dt.datetime(2010,1,15)
+ctr_time = dt.datetime(2008,9,17)
 rad = "bks"
 channel = None
 bmnum = 7
 params=['velocity']
 ftype = "fitacf"
+#ftype = "fitex"
 filtered = True
 scr = "local"
 localdirfmt = "/sd-data/{year}/{ftype}/{radar}/"
-localdict = {"ftype" : "fitacf", "radar" : "bks", "channel" : None}
+localdict = {"ftype" : ftype, "radar" : rad, "channel" : channel}
 tmpdir = "/tmp/sd/"
 fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', '{date}.{hour}......{radar}.{ftype}']
 #davitpy.rcParams['verbosity'] = "debug"
 
 # prepare the data
 #ffname = prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
-ffname = "./data/20100114.000000.20100116.000000.bks.fitacff"
+#ffname = "./data/20100114.000000.20100116.000000.bks.fitacff"
+ffname = "./data/20080916.000000.20080918.000000.bks.fitacff"
+#ffname = "./data/20080916.000000.20080918.000000.bks.fitexf"
 
 # read the file
 data_dict = read_file(ffname, rad, ctr_time, bmnum, params, ftype=ftype)
@@ -542,6 +543,11 @@ data_dict = read_file(ffname, rad, ctr_time, bmnum, params, ftype=ftype)
 data_dict = dopsearch(data_dict, ctr_time, bmnum, params)
 
 # make an rti plot
-fig = rtiplot(data_dict, rad, ctr_time, bmnum, params)
+#stm = dt.datetime(2010,1,15, 12)
+#etm = dt.datetime(2010,1,15, 14)
+stm = ctr_time
+#etm = ctr_time + dt.timedelta(days=12)
+etm = ctr_time + dt.timedelta(hours=12)
+fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, fileType=ftype)
 
 

@@ -70,10 +70,12 @@ def boxcar_filter(fname):
                 logging.warning(estr)
                 #ffname = fname
         else:
+            print "file " + fname + " exists"
             ffname = fname
 
-        os.system("mv /tmp/sd/" + ffname.split("/")[-1] + " ./data/")
-        ffname = "./data/" + ffname.split("/")[-1]
+#        # move the data
+#        os.system("mv /tmp/sd/" + ffname.split("/")[-1] + " ./data/")
+#        ffname = "./data/" + ffname.split("/")[-1]
 
 
     return ffname
@@ -511,43 +513,45 @@ def rtiplot(rad, stm, etm, bmnum, params, data_dict=None, fileType="fitacf"):
     return fig 
 
 # run the code
-import pdb
+def run_code():
+    import pdb
 
-# input parameters
-#ctr_time = dt.datetime(2010,1,15)
-ctr_time = dt.datetime(2008,9,17)
-rad = "bks"
-channel = None
-bmnum = 7
-params=['velocity']
-ftype = "fitacf"
-#ftype = "fitex"
-filtered = True
-scr = "local"
-localdirfmt = "/sd-data/{year}/{ftype}/{radar}/"
-localdict = {"ftype" : ftype, "radar" : rad, "channel" : channel}
-tmpdir = "/tmp/sd/"
-fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', '{date}.{hour}......{radar}.{ftype}']
-#davitpy.rcParams['verbosity'] = "debug"
+    # input parameters
+    #ctr_time = dt.datetime(2010,1,15)
+    ctr_time = dt.datetime(2008,9,17)
+    rad = "bks"
+    channel = None
+    bmnum = 7
+    params=['velocity']
+    ftype = "fitacf"
+    #ftype = "fitex"
+    filtered = True
+    scr = "local"
+    localdirfmt = "/sd-data/{year}/{ftype}/{radar}/"
+    localdict = {"ftype" : ftype, "radar" : rad, "channel" : channel}
+    tmpdir = "/tmp/sd/"
+    fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', '{date}.{hour}......{radar}.{ftype}']
+    #davitpy.rcParams['verbosity'] = "debug"
 
-# prepare the data
-#ffname = prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
-#ffname = "./data/20100114.000000.20100116.000000.bks.fitacff"
-ffname = "./data/20080916.000000.20080918.000000.bks.fitacff"
-#ffname = "./data/20080916.000000.20080918.000000.bks.fitexf"
+    # prepare the data
+    #ffname = prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
+    #ffname = tmpdir + "20100114.000000.20100116.000000.bks.fitacff"
+    ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitacff"
+    #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitexf"
 
-# read the file
-data_dict = read_file(ffname, rad, ctr_time, bmnum, params, ftype=ftype)
+    # read the file
+    data_dict = read_file(ffname, rad, ctr_time, bmnum, params, ftype=ftype)
 
-#data_dict, clusters = dopsearch(data_dict, ctr_time, bmnum, params)
-data_dict = dopsearch(data_dict, ctr_time, bmnum, params)
+    #data_dict, clusters = dopsearch(data_dict, ctr_time, bmnum, params)
+    data_dict = dopsearch(data_dict, ctr_time, bmnum, params)
 
-# make an rti plot
-#stm = dt.datetime(2010,1,15, 12)
-#etm = dt.datetime(2010,1,15, 14)
-stm = ctr_time
-#etm = ctr_time + dt.timedelta(days=12)
-etm = ctr_time + dt.timedelta(hours=12)
-fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, fileType=ftype)
+    # make an rti plot
+    #stm = dt.datetime(2010,1,15, 12)
+    #etm = dt.datetime(2010,1,15, 14)
+    stm = ctr_time
+    #etm = ctr_time + dt.timedelta(days=12)
+    etm = ctr_time + dt.timedelta(hours=12)
+    fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, fileType=ftype)
 
+run_code()
 

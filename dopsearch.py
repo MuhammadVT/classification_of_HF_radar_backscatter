@@ -263,7 +263,6 @@ def search_tree(data, start, data_dict):
             end_tm = data_dict['times'][end_indx]
             del_time = 0
 
-            #pdb.set_trace()
             while del_time<6.0:
             #while k<=6:
                 # use try-except to avoid hitting the end of time indices 
@@ -271,7 +270,7 @@ def search_tree(data, start, data_dict):
                     next_gates_tmp = [x[1] for x in data[end_indx+k]]
                     actual_gates = possible_gates.intersection(set(next_gates_tmp))
                     if (len(actual_gates)>0) and (max(actual_gates)>=7):
-                        queue = list(data[end_indx+k])
+                        queue = [x for x in data[end_indx+k] if x[1] in actual_gates]
                         next_node = queue[0]
                         G = create_graph(next_node, data)
                         break
@@ -313,7 +312,6 @@ def push_stm_etm(cluster, data_dict, vel_threshold=15.):
     # initialize cluster_lol indices
     sindx = 0
     eindx = len(cluster_lol)-1 
-    #pdb.set_trace()
     for ii in xrange(len(tm_indices)):
         # determine the starting time of the cluster 
         if update_stm:
@@ -459,9 +457,10 @@ def dopsearch(data_dict, ctr_time, bmnum, params):
     clusters = []
     visited_nodes_all = set() 
     start_node = find_start_node(nodes, visited_nodes=None)
-    #start_node = (384, 14)
     while start_node:
         #print start_node
+        #if start_node == (830, 37):
+        #    pdb.set_trace()
         visited_nodes = search_tree(nodes, start_node, data_dict)    # returns a set
         clusters.append(visited_nodes)
         visited_nodes_all.update(visited_nodes) 
@@ -471,7 +470,7 @@ def dopsearch(data_dict, ctr_time, bmnum, params):
 
     # pul all the clusters classified as events 
     all_iscat = set([])
-    #for cluster in [clusters[2]]:
+    #clusters = clusters[:5]
     for cluster in clusters:
         
         # find the starting and ending times of a cluster
@@ -489,7 +488,8 @@ def dopsearch(data_dict, ctr_time, bmnum, params):
     # change the gsflg values to 1(gsact)
     change_gsflg(all_gscat, data_dict, gscat_value=1)
 
-    #return data_dict, clusters, nodes 
+    #return data_dict, clusters 
+    #print "cluster_num = ", len(clusters)
     return data_dict 
 
 
@@ -538,9 +538,10 @@ ffname = "./data/20100114.000000.20100116.000000.bks.fitacff"
 # read the file
 data_dict = read_file(ffname, rad, ctr_time, bmnum, params, ftype=ftype)
 
-#data_dict, clusters, nodes = dopsearch(ffname, ctr_time, bmnum, params)
+#data_dict, clusters = dopsearch(data_dict, ctr_time, bmnum, params)
 data_dict = dopsearch(data_dict, ctr_time, bmnum, params)
 
 # make an rti plot
 fig = rtiplot(data_dict, rad, ctr_time, bmnum, params)
+
 

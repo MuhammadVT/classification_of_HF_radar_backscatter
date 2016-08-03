@@ -7,12 +7,13 @@ import logging
 import os
 import string
 import matplotlib.pyplot as plt
+from glob import glob
 
 def fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
     
     # expend the time to three days
     stime = ctr_time - dt.timedelta(days=1)
-    etime = ctr_time + dt.timedelta(days=1)
+    etime = ctr_time + dt.timedelta(days=2)
     radcode = localdict["radar"]
     ftype = localdict["ftype"]
     channel = localdict["channel"]
@@ -46,6 +47,7 @@ def fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
             logging.debug('rm ' + file_name)
             os.system('rm ' + file_name)
             os.system('rm ' + file_name+".bz2")
+            os.system('rm ' + file_name+".gz")
             logging.info("removed unneeded files")
     else:
         tmp_name = None
@@ -89,6 +91,10 @@ def prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
     ffname = boxcar_filter(concated_file)
 
     return ffname
+
+def search_file(dirpath, ctr_time, rad, ftype="fitacff"):
+    pass
+
 
 
 def read_data(myPtr, bmnum, params=["velocity"], tbands=None):
@@ -177,11 +183,7 @@ def read_data(myPtr, bmnum, params=["velocity"], tbands=None):
 
     return data
 
-def read_file(ffname, rad, ctr_time, bmnum, params, ftype="fitacf"):
-
-    #stm = ctr_time - dt.timedelta(days=1)
-    stm = ctr_time
-    etm = ctr_time + dt.timedelta(days=1)
+def read_file(ffname, rad, stm, etm, bmnum, params, ftype="fitacf"):
 
     #myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=bmnum, cp=153,
     myPtr = radDataOpen(stm, rad, eTime=etm, bmnum=bmnum,
@@ -517,8 +519,8 @@ def run_code():
     import pdb
 
     # input parameters
-    #ctr_time = dt.datetime(2010,1,15)
-    ctr_time = dt.datetime(2008,9,17)
+    ctr_time = dt.datetime(2010,1,15)
+    #ctr_time = dt.datetime(2008,9,17)
     rad = "bks"
     channel = None
     bmnum = 7
@@ -529,29 +531,31 @@ def run_code():
     scr = "local"
     localdirfmt = "/sd-data/{year}/{ftype}/{radar}/"
     localdict = {"ftype" : ftype, "radar" : rad, "channel" : channel}
-    tmpdir = "/tmp/sd/"
+    #tmpdir = "/tmp/sd/"
+    tmpdir = "./data/"
     fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', '{date}.{hour}......{radar}.{ftype}']
     #davitpy.rcParams['verbosity'] = "debug"
 
+    stm = ctr_time - dt.timedelta(days=1)
+    etm = ctr_time + dt.timedelta(days=2)
+    #etm = ctr_time + dt.timedelta(hours=12)
+
+
     # prepare the data
-    #ffname = prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
+    ffname = prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
     #ffname = tmpdir + "20100114.000000.20100116.000000.bks.fitacff"
-    ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitacff"
+    #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitacff"
     #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitexf"
 
     # read the file
-    data_dict = read_file(ffname, rad, ctr_time, bmnum, params, ftype=ftype)
+    data_dict = read_file(ffname, rad, stm, etm, bmnum, params, ftype=ftype)
 
     #data_dict, clusters = dopsearch(data_dict, ctr_time, bmnum, params)
     data_dict = dopsearch(data_dict, ctr_time, bmnum, params)
 
     # make an rti plot
-    #stm = dt.datetime(2010,1,15, 12)
-    #etm = dt.datetime(2010,1,15, 14)
-    stm = ctr_time
-    #etm = ctr_time + dt.timedelta(days=12)
-    etm = ctr_time + dt.timedelta(hours=12)
     fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, fileType=ftype)
 
-run_code()
+if __name__ == "__main__":
+    run_code()
 

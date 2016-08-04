@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 from glob import glob
 
 def fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
+
+    """ fetches files for three days centered at ctr_time.day, then unzips and concatenates
+    them into a single file """
     
     # expend the time to three days
     stime = ctr_time - dt.timedelta(days=1)
@@ -83,6 +86,7 @@ def boxcar_filter(fname):
     return ffname
 
 def prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
+    """ A wrapper for file fetching and boxcar filtering"""
 
     # fetch and concatenate the three consecutive days of data centered on the target date 
     concated_file = fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
@@ -97,7 +101,8 @@ def search_file(dirpath, ctr_time, rad, ftype="fitacff"):
 
 
 
-def read_data(myPtr, bmnum, params=["velocity"], tbands=None):
+def read_data(myPtr, bmnum, params=["velocity"], tbands=None, coords="geo"):
+
     """Reads data from the file pointed to by myPtr
 
     Parameter
@@ -112,6 +117,10 @@ def read_data(myPtr, bmnum, params=["velocity"], tbands=None):
         a list of the parameters to read
     tbands : list
         a list of the frequency bands to separate data into
+    coords : string 
+        converts the range-time cell position (clat, clon) into the value 
+        given by coords. Has to be one of ["mag", "geo", "mlt"]
+        (Note: only works for "geo" so far due to speed issue)
 
     Returns
     -------
@@ -124,20 +133,24 @@ def read_data(myPtr, bmnum, params=["velocity"], tbands=None):
         from datetime import datetime
         myPtr = pydarn.sdio.radDataOpen(datetime(2012,11,24),'sas')
         myBeam = myPtr.readRec()
-        data_dict = read_data(myPtr, myBeam, 7, ['velocity'], [8000,20000])
+        data_dict = read_data(myPtr, bmnum, params=['velocity'], [8000,20000])
 
     Written by Muhammad 20160722
 
     """
+
+    from davitpy import pydarn
 
     if tbands is None:
         tbands = [8000, 20000]
 
     # Initialize some things.
     data = dict()
+
+    # use the following data_keys if you want to plot the data using rtiplot function
     data_keys = ['vel', 'pow', 'wid', 'elev', 'phi0', 'times', 'freq', 'cpid',
                  'nave', 'nsky', 'nsch', 'slist', 'mode', 'rsep', 'nrang',
-                 'frang', 'gsflg', 'velocity_error']
+                 'frang', 'gsflg', 'velocity_error', 'bmazm', 'clats', 'clons']
     for d in data_keys:
         data[d] = []
 
@@ -152,6 +165,7 @@ def read_data(myPtr, bmnum, params=["velocity"], tbands=None):
             if (myBeam.prm.tfreq >= tbands[0] and
                 myBeam.prm.tfreq <= tbands[1]):
                 data['times'].append(myBeam.time)
+                data['bmazm'].append(myBeam.prm.bmazm)
                 data['cpid'].append(myBeam.cp)
                 data['nave'].append(myBeam.prm.nave)
                 data['nsky'].append(myBeam.prm.noisesky)
@@ -163,6 +177,17 @@ def read_data(myPtr, bmnum, params=["velocity"], tbands=None):
                 data['mode'].append(myBeam.prm.ifmode)
                 data['gsflg'].append(myBeam.fit.gflg)
                 data['slist'].append(myBeam.fit.slist)
+
+#                # save the center lat, lon position of each scatter. This takes too much time
+#                site = pydarn.radar.network().getRadarById(myBeam.stid) \
+#                    .getSiteByDate(myBeam.time)
+#                myFov = pydarn.radar.radFov.fov(site=site, ngates=myBeam.prm.nrang,
+#                                                nbeams=site.maxbeam,
+#                                                rsep=myBeam.prm.rsep,
+#                                                coords=coords,
+#                                                date_time=myBeam.time)
+#                data['clats'].append(myFov.latCenter[bmnum][myBeam.fit.slist])
+#                data['clons'].append(myFov.lonCenter[bmnum][myBeam.fit.slist])
                 
                 # To save time and RAM, only keep the data specified
                 # in params.
@@ -188,7 +213,10 @@ def read_file(ffname, rad, stm, etm, bmnum, params, ftype="fitacf"):
     #myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=bmnum, cp=153,
     myPtr = radDataOpen(stm, rad, eTime=etm, bmnum=bmnum,
                         fileName=ffname, fileType=ftype)
+    t1 = dt.datetime.now()
     data_dict = read_data(myPtr, bmnum, params=params, tbands=None)
+    t2 = dt.datetime.now()
+    print ("read_data takes " + str((t2-t1).seconds / 60.)) + " mins"
 
     return data_dict 
 
@@ -542,8 +570,8 @@ def run_code():
 
 
     # prepare the data
-    ffname = prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
-    #ffname = tmpdir + "20100114.000000.20100116.000000.bks.fitacff"
+    #ffname = prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
+    ffname = tmpdir + "20100114.000000.20100117.000000.bks.fitacff"
     #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitacff"
     #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitexf"
 
@@ -556,6 +584,8 @@ def run_code():
     # make an rti plot
     fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, fileType=ftype)
 
+    return data_dict
+
 if __name__ == "__main__":
-    run_code()
+    data_dict = run_code()
 

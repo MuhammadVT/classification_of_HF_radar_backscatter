@@ -8,6 +8,7 @@ import os
 import string
 import matplotlib.pyplot as plt
 from glob import glob
+import pdb
 
 def fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
 
@@ -99,9 +100,7 @@ def prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
 def search_file(dirpath, ctr_time, rad, ftype="fitacff"):
     pass
 
-
-
-def read_data(myPtr, bmnum, params=["velocity"], tbands=None, coords="geo"):
+def read_data_for_rtiplot(myPtr, bmnum, params=["velocity"], tbands=None, coords="geo"):
 
     """Reads data from the file pointed to by myPtr
 
@@ -154,8 +153,6 @@ def read_data(myPtr, bmnum, params=["velocity"], tbands=None, coords="geo"):
     for d in data_keys:
         data[d] = []
 
-
-    
     # Read the parameters of interest.
     myPtr.rewind()
     myBeam = myPtr.readRec()
@@ -206,17 +203,103 @@ def read_data(myPtr, bmnum, params=["velocity"], tbands=None, coords="geo"):
 
         myBeam = myPtr.readRec()
 
-    return data
+    return {bmnum:data}
 
-def read_file(ffname, rad, stm, etm, bmnum, params, ftype="fitacf"):
 
-    #myPtr = radDataOpen(stm, "bks", eTime=etm, bmnum=bmnum, cp=153,
-    myPtr = radDataOpen(stm, rad, eTime=etm, bmnum=bmnum,
-                        fileName=ffname, fileType=ftype)
-    t1 = dt.datetime.now()
-    data_dict = read_data(myPtr, bmnum, params=params, tbands=None)
-    t2 = dt.datetime.now()
-    print ("read_data takes " + str((t2-t1).seconds / 60.)) + " mins"
+
+def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
+
+    """Reads data from the file pointed to by myPtr
+
+    Parameter
+    ---------
+    myPtr :
+        a davitpy file pointer object
+    myBeam : 
+        a davitpy beam object
+    params : list
+        a list of the parameters to read
+    tbands : list
+        a list of the frequency bands to separate data into
+    coords : string 
+        converts the range-time cell position (clat, clon) into the value 
+        given by coords. Has to be one of ["mag", "geo", "mlt"]
+        (Note: only works for "geo" so far due to speed issue)
+
+    Returns
+    -------
+    A list of dicts of the data. Each dict element stores data for a certain beam.
+    Data in each dict is stored in lists and separated in to tbands.
+
+    Example
+    -------
+        from davitpy import pydarn
+        from datetime import datetime
+        myPtr = pydarn.sdio.radDataOpen(datetime(2012,11,24),'sas')
+        myBeam = myPtr.readRec()
+        data_dict = read_data(myPtr, params=['velocity'], [8000,20000])
+
+    Written by Muhammad 20160722
+
+    """
+
+    from davitpy import pydarn
+    import copy
+
+    if tbands is None:
+        tbands = [8000, 20000]
+
+    # Initialize some things.
+    data = dict()
+    # use the following data_keys if you do not want to plot the data using rtiplot function
+    data_keys = ['vel', 'times', 'slist', 'rsep', 'nrang', 'frang', 'gsflg', 'bmazm']
+    for d in data_keys:
+        data[d] = []
+
+    # list of dicts. each dict stores data for a certain bmnum
+    max_nbms = 30
+    all_beams = dict()
+    all_beams = {bm:copy.deepcopy(data) for bm in xrange(max_nbms)}      
+
+    # Read the parameters of interest.
+    myPtr.rewind()
+    myBeam = myPtr.readRec()
+    while(myBeam is not None):
+        if(myBeam.time > myPtr.eTime): break
+        if(myPtr.sTime <= myBeam.time):
+            if (myBeam.prm.tfreq >= tbands[0] and
+                myBeam.prm.tfreq <= tbands[1]):
+                bmnum = myBeam.bmnum
+                all_beams[bmnum]['times'].append(myBeam.time)
+                all_beams[bmnum]['bmazm'].append(myBeam.prm.bmazm)
+                all_beams[bmnum]['rsep'].append(myBeam.prm.rsep)
+                all_beams[bmnum]['nrang'].append(myBeam.prm.nrang)
+                all_beams[bmnum]['frang'].append(myBeam.prm.frang)
+                all_beams[bmnum]['gsflg'].append(myBeam.fit.gflg)
+                all_beams[bmnum]['slist'].append(myBeam.fit.slist)
+
+                # To save time and RAM, only keep the data specified
+                # in params.
+                if('velocity' in params):
+                    all_beams[bmnum]['vel'].append(myBeam.fit.v)
+
+        myBeam = myPtr.readRec()
+
+    return all_beams
+
+def read_file(ffname, rad, stm, etm, bmnum, params, ftype="fitacf", plotRti=False):
+
+    """ A wrapper for reading a file. if plotRti==True, all beams will be read at once and 
+        bmnum variable does not affect anything.
+        if plotRti==False, this will read data for a certain beam so that rtiplot function can plot
+        the data.
+    """
+
+    myPtr = radDataOpen(stm, rad, eTime=etm, fileName=ffname, fileType=ftype)
+    if plotRti:
+        data_dict = read_data_for_rtiplot(myPtr, bmnum, params=params, tbands=None)
+    else:
+        data_dict = read_data(myPtr, params=params, tbands=None)
 
     return data_dict 
 
@@ -460,13 +543,25 @@ def isevent(cluster, data_dict, vel_threshold=15.):
 
     return result
          
-    
-    # find the starting and ending time of a cluster
-    #while True:
 
-    #cluster = [[x for x in cluster if x[0]==y] for y in tm_indices]
-#    return cluster
-    
+ def is_low_vel_event(cluster, data_dict, vel_lim=120):
+    import datetime as dt
+
+    result = False
+    if isevent(cluster, data_dict, vel_threshold=15.):
+
+        cluster_vels = sorted([data_dict['vel'][item[0]][(data_dict['slist'][item[0]]).\
+                index(item[1])] for item in cluster])
+
+        # find indices that corresponds to 3 and 97 percentile 
+        third_percentile = np.percentile(cluster_vels, 3)
+        nightyseventh_percentile = np.percentile(cluster_vels, 97)
+
+        if (third_percentile>-vel_lim and nightyseventh_percentile<vel_lim):
+            result = True
+
+    return result
+       
 
 def change_gsflg(cluster, data_dict, gscat_value=0):
     for tpl in cluster:
@@ -476,11 +571,19 @@ def change_gsflg(cluster, data_dict, gscat_value=0):
 
 
 
-def dopsearch(data_dict, ctr_time, bmnum, params):
-
+def search_IS_event(data_dict, ctr_time, bmnum, params, low_vel_IS_event_only=True):
+    """ do the classification for 3 days data one beam at a time.
+    
+    low_vel_IS_event_only : bool
+        It set to True, returns low velocity inospheric scatter event only
+        
+    returns a dict of dicts in the form of {bmnum:dict}
+    """
 
     # create nodes, whic is a list of lists, from data_dict.
     # Each node is represented by (time_index, gate_number)
+
+    data_dict = data_dict[bmnum]
     nodes = create_nodes(data_dict)
 
     # cluster the data using depth_first_search algorithm
@@ -490,9 +593,6 @@ def dopsearch(data_dict, ctr_time, bmnum, params):
     visited_nodes_all = set() 
     start_node = find_start_node(nodes, visited_nodes=None)
     while start_node:
-        #print start_node
-        #if start_node == (830, 37):
-        #    pdb.set_trace()
         visited_nodes = search_tree(nodes, start_node, data_dict)    # returns a set
         clusters.append(visited_nodes)
         visited_nodes_all.update(visited_nodes) 
@@ -509,26 +609,30 @@ def dopsearch(data_dict, ctr_time, bmnum, params):
         cluster = push_stm_etm(cluster, data_dict, vel_threshold=15.)
 
         # classify the cluster
-        event_logic = isevent(cluster, data_dict)
+        if low_vel_IS_event_only:
+            event_logic = is_low_vel_event(cluster, data_dict)
+        else:
+            event_logic = isevent(cluster, data_dict)
         if event_logic:
             # change the gsflg values to 0(isact)
             change_gsflg(cluster, data_dict, gscat_value=0)
             all_iscat.update(cluster)
 
+    # change the gsflg values to 1(gsact)
     nodes_flat = set([x for y in nodes for x in y])
     all_gscat = set(nodes_flat) - all_iscat
-    # change the gsflg values to 1(gsact)
     change_gsflg(all_gscat, data_dict, gscat_value=1)
 
     #return data_dict, clusters 
     #print "cluster_num = ", len(clusters)
-    return data_dict 
+    return {bmnum:data_dict}
 
 
 def rtiplot(rad, stm, etm, bmnum, params, data_dict=None, fileType="fitacf"):
 
     from myrti import plot_rti
 
+    data_dict = data_dict[bmnum]
     scales = [[-120, 120]]
     yrng = [0, 70]
     filtered=False
@@ -543,8 +647,7 @@ def rtiplot(rad, stm, etm, bmnum, params, data_dict=None, fileType="fitacf"):
     return fig 
 
 # run the code
-def run_code():
-    import pdb
+def run_code(plotRti=False):
 
     # input parameters
     ctr_time = dt.datetime(2010,1,15)
@@ -576,16 +679,24 @@ def run_code():
     #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitexf"
 
     # read the file
-    data_dict = read_file(ffname, rad, stm, etm, bmnum, params, ftype=ftype)
+    t1 = dt.datetime.now()
+    data_dict = read_file(ffname, rad, stm, etm, bmnum, params, ftype=ftype, plotRti=plotRti)
+    t2 = dt.datetime.now()
+    print ("read_file takes " + str((t2-t1).seconds / 60.)) + " mins"
 
-    #data_dict, clusters = dopsearch(data_dict, ctr_time, bmnum, params)
-    data_dict = dopsearch(data_dict, ctr_time, bmnum, params)
+    t1 = dt.datetime.now()
+    #data_dict, clusters = search_IS_event(data_dict, ctr_time, bmnum, params)
+    data_dict = search_IS_event(data_dict, ctr_time, bmnum, params, low_vel_IS_event_only=True)
+    t2 = dt.datetime.now()
+    print ("search_IS_event takes " + str((t2-t1).seconds / 60.)) + " mins"
 
     # make an rti plot
-    fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, fileType=ftype)
+    if plotRti:
+        fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, fileType=ftype)
 
     return data_dict
 
 if __name__ == "__main__":
-    data_dict = run_code()
+    data_dict = run_code(plotRti=False)
+    #data_dict = run_code(plotRti=True)
 

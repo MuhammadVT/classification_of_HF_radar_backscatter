@@ -9,6 +9,7 @@ import string
 import matplotlib.pyplot as plt
 from glob import glob
 import pdb
+import numpy as np
 
 def fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
 
@@ -287,19 +288,25 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
 
     return all_beams
 
-def read_file(ffname, rad, stm, etm, bmnum, params, ftype="fitacf", plotRti=False):
+def read_file(ffname, rad, stm, etm, params, ftype="fitacf"):
 
-    """ A wrapper for reading a file. if plotRti==True, all beams will be read at once and 
-        bmnum variable does not affect anything.
-        if plotRti==False, this will read data for a certain beam so that rtiplot function can plot
-        the data.
+    """ A wrapper for reading a file. It reads all beams at once 
     """
 
     myPtr = radDataOpen(stm, rad, eTime=etm, fileName=ffname, fileType=ftype)
-    if plotRti:
-        data_dict = read_data_for_rtiplot(myPtr, bmnum, params=params, tbands=None)
-    else:
-        data_dict = read_data(myPtr, params=params, tbands=None)
+    data_dict = read_data(myPtr, params=params, tbands=None)
+
+    return data_dict 
+
+
+def read_file_for_rtiplot(ffname, rad, stm, etm, bmnum, params, ftype="fitacf"):
+
+    """ A wrapper for reading a file. this will read data for a certain beam 
+        so that rtiplot function can plot the data.
+    """
+
+    myPtr = radDataOpen(stm, rad, eTime=etm, fileName=ffname, fileType=ftype)
+    data_dict = read_data_for_rtiplot(myPtr, bmnum, params=params, tbands=None)
 
     return data_dict 
 
@@ -544,10 +551,12 @@ def isevent(cluster, data_dict, vel_threshold=15.):
     return result
          
 
- def is_low_vel_event(cluster, data_dict, vel_lim=120):
+def is_low_vel_event(cluster, data_dict, vel_lim=120):
     import datetime as dt
 
     result = False
+
+    # low_vel_event has to be an iscat event
     if isevent(cluster, data_dict, vel_threshold=15.):
 
         cluster_vels = sorted([data_dict['vel'][item[0]][(data_dict['slist'][item[0]]).\
@@ -571,10 +580,10 @@ def change_gsflg(cluster, data_dict, gscat_value=0):
 
 
 
-def search_IS_event(data_dict, ctr_time, bmnum, params, low_vel_IS_event_only=True):
+def search_iscat_event(data_dict, ctr_time, bmnum, params, low_vel_iscat_event_only=True):
     """ do the classification for 3 days data one beam at a time.
     
-    low_vel_IS_event_only : bool
+    low_vel_iscat_event_only : bool
         It set to True, returns low velocity inospheric scatter event only
         
     returns a dict of dicts in the form of {bmnum:dict}
@@ -609,7 +618,7 @@ def search_IS_event(data_dict, ctr_time, bmnum, params, low_vel_IS_event_only=Tr
         cluster = push_stm_etm(cluster, data_dict, vel_threshold=15.)
 
         # classify the cluster
-        if low_vel_IS_event_only:
+        if low_vel_iscat_event_only:
             event_logic = is_low_vel_event(cluster, data_dict)
         else:
             event_logic = isevent(cluster, data_dict)
@@ -663,7 +672,7 @@ def run_code(plotRti=False):
     localdirfmt = "/sd-data/{year}/{ftype}/{radar}/"
     localdict = {"ftype" : ftype, "radar" : rad, "channel" : channel}
     #tmpdir = "/tmp/sd/"
-    tmpdir = "./data/"
+    tmpdir = "../data/"
     fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', '{date}.{hour}......{radar}.{ftype}']
     #davitpy.rcParams['verbosity'] = "debug"
 
@@ -678,19 +687,27 @@ def run_code(plotRti=False):
     #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitacff"
     #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitexf"
 
-    # read the file
-    t1 = dt.datetime.now()
-    data_dict = read_file(ffname, rad, stm, etm, bmnum, params, ftype=ftype, plotRti=plotRti)
-    t2 = dt.datetime.now()
-    print ("read_file takes " + str((t2-t1).seconds / 60.)) + " mins"
-
-    t1 = dt.datetime.now()
-    #data_dict, clusters = search_IS_event(data_dict, ctr_time, bmnum, params)
-    data_dict = search_IS_event(data_dict, ctr_time, bmnum, params, low_vel_IS_event_only=True)
-    t2 = dt.datetime.now()
-    print ("search_IS_event takes " + str((t2-t1).seconds / 60.)) + " mins"
-
     # make an rti plot
+    if plotRti:
+        # read the file
+        t1 = dt.datetime.now()
+        data_dict = read_file_for_rtiplot(ffname, rad, stm, etm, bmnum, params, ftype=ftype)
+        t2 = dt.datetime.now()
+        print ("read_file takes " + str((t2-t1).seconds / 60.)) + " mins"
+    else:
+        # read the file
+        t1 = dt.datetime.now()
+        data_dict = read_file(ffname, rad, stm, etm, params, ftype=ftype)
+        t2 = dt.datetime.now()
+        print ("read_file takes " + str((t2-t1).seconds / 60.)) + " mins"
+
+    t1 = dt.datetime.now()
+    #data_dict, clusters = search_iscat_event(data_dict, ctr_time, bmnum, params)
+    data_dict = search_iscat_event(data_dict, ctr_time, bmnum, params,
+                                   low_vel_iscat_event_only=True)
+    t2 = dt.datetime.now()
+    print ("search_iscat_event takes " + str((t2-t1).seconds / 60.)) + " mins"
+
     if plotRti:
         fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, fileType=ftype)
 

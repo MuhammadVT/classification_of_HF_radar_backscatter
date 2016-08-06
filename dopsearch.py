@@ -52,7 +52,7 @@ def fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
             logging.debug('rm ' + file_name)
             os.system('rm ' + file_name)
             os.system('rm ' + file_name+".bz2")
-            os.system('rm ' + file_name+".gz")
+            #os.system('rm ' + file_name+".gz")
             logging.info("removed unneeded files")
     else:
         tmp_name = None
@@ -251,14 +251,18 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
     # Initialize some things.
     data = dict()
 
-#    # use the following data_keys if you do not want to plot the data using rtiplot function
-#    data_keys = ['vel', 'times', 'slist', 'rsep', 'nrang', 'frang', 'gsflg', 'bmazm']
+    plotrti=False
 
+    if not plotrti:
+        # use the following data_keys if you do not want to plot the data using rtiplot function
+        data_keys = ['vel', 'times', 'slist', 'rsep', 'nrang', 'frang', 'gsflg', 'bmazm']
 
-    # use the following data_keys if you want to plot the data using rtiplot function
-    data_keys = ['vel', 'pow', 'wid', 'elev', 'phi0', 'times', 'freq', 'cpid',
-                 'nave', 'nsky', 'nsch', 'slist', 'mode', 'rsep', 'nrang',
-                 'frang', 'gsflg', 'velocity_error', 'bmazm', 'clats', 'clons']
+    else:
+
+        # use the following data_keys if you want to plot the data using rtiplot function
+        data_keys = ['vel', 'pow', 'wid', 'elev', 'phi0', 'times', 'freq', 'cpid',
+                     'nave', 'nsky', 'nsch', 'slist', 'mode', 'rsep', 'nrang',
+                     'frang', 'gsflg', 'velocity_error', 'bmazm', 'clats', 'clons']
 
     for d in data_keys:
         data[d] = []
@@ -278,7 +282,7 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
                 myBeam.prm.tfreq <= tbands[1]):
                 bmnum = myBeam.bmnum
                 all_beams[bmnum]['times'].append(myBeam.time)
-                all_beams[bmnum]['bmazm'].append(myBeam.prm.bmazm)
+                all_beams[bmnum]['bmazm'].append(round(myBeam.prm.bmazm,2))
                 all_beams[bmnum]['rsep'].append(myBeam.prm.rsep)
                 all_beams[bmnum]['nrang'].append(myBeam.prm.nrang)
                 all_beams[bmnum]['frang'].append(myBeam.prm.frang)
@@ -286,12 +290,14 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
                 all_beams[bmnum]['slist'].append(myBeam.fit.slist)
 
 ####################################################################
-                all_beams[bmnum]['cpid'].append(myBeam.cp)
-                all_beams[bmnum]['nave'].append(myBeam.prm.nave)
-                all_beams[bmnum]['nsky'].append(myBeam.prm.noisesky)
-                all_beams[bmnum]['nsch'].append(myBeam.prm.noisesearch)
-                all_beams[bmnum]['freq'].append(myBeam.prm.tfreq / 1e3)
-                all_beams[bmnum]['mode'].append(myBeam.prm.ifmode)
+
+                if plotrti:
+                    all_beams[bmnum]['cpid'].append(myBeam.cp)
+                    all_beams[bmnum]['nave'].append(myBeam.prm.nave)
+                    all_beams[bmnum]['nsky'].append(myBeam.prm.noisesky)
+                    all_beams[bmnum]['nsch'].append(myBeam.prm.noisesearch)
+                    all_beams[bmnum]['freq'].append(myBeam.prm.tfreq / 1e3)
+                    all_beams[bmnum]['mode'].append(myBeam.prm.ifmode)
 
 ####################################################################
 
@@ -700,12 +706,12 @@ def search_iscat_event(data_dict, ctr_time, bmnum, params,
             change_gsflg(cluster, data_dict, gscat_value=0)
             all_iscat.update(cluster)
 
-    # change the gsflg values of non-events to 1(gsact)
     nodes_flat = set([x for y in nodes for x in y])
     if no_gscat:
         iscat_dict = remove_gscat(all_iscat, data_dict)
         return {bmnum:iscat_dict}
     else:
+        # change the gsflg values of non-events to 1(gsact)
         all_gscat = set(nodes_flat) - all_iscat
         change_gsflg(all_gscat, data_dict, gscat_value=1)
         return {bmnum:data_dict}
@@ -884,7 +890,7 @@ def test_code(plotRti=False):
 
         events = iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
                        params=["velocity"], low_vel_iscat_event_only=False,
-                       search_allbeams=False, bmnum=bmnum, no_gscat=True, ffname=ffname)
+                       search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=ffname)
         data_dict = events
 
         fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, fileType=ftype)

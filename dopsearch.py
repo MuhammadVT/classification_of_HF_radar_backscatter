@@ -594,14 +594,64 @@ def change_gsflg(cluster, data_dict, gscat_value=0):
         data_dict['gsflg'][x1][indx] = gscat_value 
 
 
-def remove_gscat(gscat_pnts, data_dict):
-    for tpl in cluster:
-        x1, x2 = tpl 
-        indx = data_dict['slist'][x1].index(x2)
-        data_dict['gsflg'][x1][indx] = gscat_value 
+def remove_gscat(all_iscat, data_dict):
+
+
+    """ removes the gscat and leave only iscat
+
+    all_iscat : set
+        a set of tuples. each tuple is in the form of (tm_indx, gate_num)
+    data_dict : dict
+        holds parameters from a certain beam. 
+
+    Returns
+    iscat_dict : dict
+        a dict of dicts similiar to data_dict but only holdes the iscat data
+
+    
+    """
+    t1 = dt.datetime.now()
+
+    # write all_iscat set as list of lists. Each list element stors iscat cells for a given time
+    tm_indices = sorted(list(set([x[0] for x in all_iscat])))
+    all_iscat_lol = [[x for x in all_iscat if y==x[0]] for y in tm_indices]
+
+    kys_tmp = data_dict.keys()
+    iscat_dict = dict()
+    # initialize iscat_dict
+    for d in kys_tmp:
+        iscat_dict[d] = []
+
+    kys_a = []    # stores parameters like "slist", "vel" 
+    kys_b = []    # stores parameters like "bmazm", "times"
+
+    for ky in kys_tmp:
+        if data_dict[ky] == []:
+            iscat_dict.pop(ky)
+            continue
+        if isinstance(data_dict[ky][tm_indices[0]], list):
+            kys_a.append(ky)
+        else:
+            kys_b.append(ky)
+
+    for i, tm in enumerate(tm_indices):
+
+        for ky in kys_tmp:
+            if ky in kys_a:
+                iscat_dict[ky].append([])
+                indx_tmp = [data_dict['slist'][tpl[0]].index(tpl[1]) for tpl in all_iscat_lol[i]]
+                iscat_dict[ky][i] = [data_dict[ky][tm][ix] for ix in indx_tmp]
+            if ky in kys_b:
+                iscat_dict[ky].append(data_dict[ky][tm])
+
+    t2 = dt.datetime.now()
+    print ("remove_gscat takes " + str((t2-t1).seconds / 60.)) + " mins"
+
+    return iscat_dict
+
 
 def search_iscat_event(data_dict, ctr_time, bmnum, params, 
-                       low_vel_iscat_event_only=True):
+                       low_vel_iscat_event_only=True, no_gscat=False):
     """ do the classification for 3 days data one beam at a time.
     
     low_vel_iscat_event_only : bool
@@ -652,12 +702,14 @@ def search_iscat_event(data_dict, ctr_time, bmnum, params,
 
     # change the gsflg values of non-events to 1(gsact)
     nodes_flat = set([x for y in nodes for x in y])
-    all_gscat = set(nodes_flat) - all_iscat
-    change_gsflg(all_gscat, data_dict, gscat_value=1)
+    if no_gscat:
+        iscat_dict = remove_gscat(all_iscat, data_dict)
+        return {bmnum:iscat_dict}
+    else:
+        all_gscat = set(nodes_flat) - all_iscat
+        change_gsflg(all_gscat, data_dict, gscat_value=1)
+        return {bmnum:data_dict}
 
-    #return data_dict, clusters 
-    #print "cluster_num = ", len(clusters)
-    return {bmnum:data_dict}
 
 #def remove_gscat(data_dict):
 #    """ removes the gscat and leave only iscat
@@ -747,20 +799,12 @@ def iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
             # search for event. Returns a dict of dicts with a single bmnum as keyword.
             # this is because search_iscat_event workds on a single beam at a time
             events.update(search_iscat_event(all_beams, ctr_time, b, params,
-                low_vel_iscat_event_only=low_vel_iscat_event_only))
+                low_vel_iscat_event_only=low_vel_iscat_event_only, no_gscat=no_gscat))
     else:
         events.update(search_iscat_event(all_beams, ctr_time, bmnum, params,
-            low_vel_iscat_event_only=low_vel_iscat_event_only))
+            low_vel_iscat_event_only=low_vel_iscat_event_only, no_gscat=no_gscat))
     t2 = dt.datetime.now()
-    print ("iscat event searching takes " + str((t2-t1).seconds / 60.)) + " mins"
-
-    # remove gscat
-    if no_gscat:
-        t1 = dt.datetime.now()
-        for bn in events.keys():
-            remove_gscat(events[bn])
-        t2 = dt.datetime.now()
-        print ("remove_gscat takes " + str((t2-t1).seconds / 60.)) + " mins"
+    print ("iscat event searching process takes " + str((t2-t1).seconds / 60.)) + " mins"
 
     return events
 
@@ -840,7 +884,7 @@ def test_code(plotRti=False):
 
         events = iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
                        params=["velocity"], low_vel_iscat_event_only=False,
-                       search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=ffname)
+                       search_allbeams=False, bmnum=bmnum, no_gscat=True, ffname=ffname)
         data_dict = events
 
         fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, fileType=ftype)

@@ -98,8 +98,6 @@ def prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
 
     return ffname
 
-def search_file(dirpath, ctr_time, rad, ftype="fitacff"):
-    pass
 
 def read_data_for_rtiplot(myPtr, bmnum, params=["velocity"], tbands=None, coords="geo"):
 
@@ -150,7 +148,7 @@ def read_data_for_rtiplot(myPtr, bmnum, params=["velocity"], tbands=None, coords
     # use the following data_keys if you want to plot the data using rtiplot function
     data_keys = ['vel', 'pow', 'wid', 'elev', 'phi0', 'times', 'freq', 'cpid',
                  'nave', 'nsky', 'nsch', 'slist', 'mode', 'rsep', 'nrang',
-                 'frang', 'gsflg', 'velocity_error', 'bmazm', 'clats', 'clons']
+                 'frang', 'gsflg', 'velocity_error', 'bmazm']
     for d in data_keys:
         data[d] = []
 
@@ -252,8 +250,16 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
 
     # Initialize some things.
     data = dict()
-    # use the following data_keys if you do not want to plot the data using rtiplot function
-    data_keys = ['vel', 'times', 'slist', 'rsep', 'nrang', 'frang', 'gsflg', 'bmazm']
+
+#    # use the following data_keys if you do not want to plot the data using rtiplot function
+#    data_keys = ['vel', 'times', 'slist', 'rsep', 'nrang', 'frang', 'gsflg', 'bmazm']
+
+
+    # use the following data_keys if you want to plot the data using rtiplot function
+    data_keys = ['vel', 'pow', 'wid', 'elev', 'phi0', 'times', 'freq', 'cpid',
+                 'nave', 'nsky', 'nsch', 'slist', 'mode', 'rsep', 'nrang',
+                 'frang', 'gsflg', 'velocity_error', 'bmazm', 'clats', 'clons']
+
     for d in data_keys:
         data[d] = []
 
@@ -278,6 +284,17 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
                 all_beams[bmnum]['frang'].append(myBeam.prm.frang)
                 all_beams[bmnum]['gsflg'].append(myBeam.fit.gflg)
                 all_beams[bmnum]['slist'].append(myBeam.fit.slist)
+
+####################################################################
+                all_beams[bmnum]['cpid'].append(myBeam.cp)
+                all_beams[bmnum]['nave'].append(myBeam.prm.nave)
+                all_beams[bmnum]['nsky'].append(myBeam.prm.noisesky)
+                all_beams[bmnum]['nsch'].append(myBeam.prm.noisesearch)
+                all_beams[bmnum]['freq'].append(myBeam.prm.tfreq / 1e3)
+                all_beams[bmnum]['mode'].append(myBeam.prm.ifmode)
+
+####################################################################
+
 
                 # To save time and RAM, only keep the data specified
                 # in params.
@@ -405,8 +422,6 @@ def search_tree(data, start, data_dict):
                     break
                     
     return visited
-
-
 
 def push_stm_etm(cluster, data_dict, vel_threshold=15.):
     import datetime as dt
@@ -579,14 +594,22 @@ def change_gsflg(cluster, data_dict, gscat_value=0):
         data_dict['gsflg'][x1][indx] = gscat_value 
 
 
+def remove_gscat(gscat_pnts, data_dict):
+    for tpl in cluster:
+        x1, x2 = tpl 
+        indx = data_dict['slist'][x1].index(x2)
+        data_dict['gsflg'][x1][indx] = gscat_value 
 
-def search_iscat_event(data_dict, ctr_time, bmnum, params, low_vel_iscat_event_only=True):
+def search_iscat_event(data_dict, ctr_time, bmnum, params, 
+                       low_vel_iscat_event_only=True):
     """ do the classification for 3 days data one beam at a time.
     
     low_vel_iscat_event_only : bool
         It set to True, returns low velocity inospheric scatter event only
         
-    returns a dict of dicts in the form of {bmnum:dict}
+    Returns : dict
+        A dict of dicts in the form of {bmnum:dict}.
+        returns data of a beam with all its points' gsflg marked as 1 (gscat) except for iscat
     """
 
     # create nodes, whic is a list of lists, from data_dict.
@@ -627,7 +650,7 @@ def search_iscat_event(data_dict, ctr_time, bmnum, params, low_vel_iscat_event_o
             change_gsflg(cluster, data_dict, gscat_value=0)
             all_iscat.update(cluster)
 
-    # change the gsflg values to 1(gsact)
+    # change the gsflg values of non-events to 1(gsact)
     nodes_flat = set([x for y in nodes for x in y])
     all_gscat = set(nodes_flat) - all_iscat
     change_gsflg(all_gscat, data_dict, gscat_value=1)
@@ -635,6 +658,111 @@ def search_iscat_event(data_dict, ctr_time, bmnum, params, low_vel_iscat_event_o
     #return data_dict, clusters 
     #print "cluster_num = ", len(clusters)
     return {bmnum:data_dict}
+
+#def remove_gscat(data_dict):
+#    """ removes the gscat and leave only iscat
+#
+#    data_dict : dict
+#        holds parameters from a certain beam. 
+#    
+#    """
+#    kys_tmp = data_dict.keys()
+#    kys_a = []    # stores parameters like "slist", "vel" 
+#    kys_b = []    # stores parameters like "bmazm", "times"
+#    for ky in kys_tmp:
+#        if data_dict[ky] == []:
+#            data_dict.pop(ky)
+#            continue
+#        if isinstance(data_dict[ky][0], list):
+#            kys_a.append(ky)
+#        else:
+#            kys_b.append(ky)
+#
+#    kys_a.remove('gsflg')
+#    for ky in kys_a:
+#        data_tmp = [[x for j, x in enumerate(l) if data_dict['gsflg'][i][j]==0]\
+#                for i, l in enumerate(data_dict[ky]) if l]
+#        data_dict[ky] = data_tmp
+#    for ky in kys_b:
+#        data_tmp = [x for i, x in enumerate(data_dict[ky])\
+#                if (not np.all(data_dict['gsflg'][i])) and (data_dict['gsflg'][i] is not None)]
+#        data_dict[ky] = data_tmp
+#
+#    data_tmp = [[x for j, x in enumerate(l) if x == 0]\
+#            for i, l in enumerate(data_dict['gsflg']) if l]
+#    data_dict['gsflg'] = data_tmp
+#
+#
+#    return
+
+def iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
+                   params=["velocity"], low_vel_iscat_event_only=False,
+                   search_allbeams=True, bmnum=7, no_gscat=False, ffname=None):
+    """ A wrapper that does all of file prepareting, file reading, and 
+        searching for iscat events.
+        
+    params : list
+        works for params=["velocity"] only
+    search_allbeams : bool
+        if set to true, iscat event searching will be performed on all the 
+        beams, and ignores the bmnum argument. 
+    bmnum : int
+        bmnum argument only works in search_allbeams is set to False
+    no_gscat : removes all the gscat
+    ffname : string
+        if ffname is not set to None, ffname will be be read
+
+    Returns : dict
+        A dict of dicts in the form of {bmnum:dict}.
+        if no_gscat==False, returns data all its points'
+        gsflg marked as 1 (gscat) except for iscat.
+        if no_gscat==True, returns only the iscat (gsflg=0)
+        
+    """
+    stm = ctr_time - dt.timedelta(days=1)
+    etm = ctr_time + dt.timedelta(days=2)
+    rad = localdict["radar"]
+    ftype = localdict["ftype"]
+
+    # prepare the data
+    t1 = dt.datetime.now()
+    if not ffname:
+        ffname = prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt) 
+    t2 = dt.datetime.now()
+    print ("prepare_file takes " + str((t2-t1).seconds / 60.)) + " mins"
+
+    t1 = dt.datetime.now()
+    # read the file. Returns a dict of dicts with bmnums as key words.
+    all_beams = read_file(ffname, rad, stm, etm, params, ftype=ftype)
+    #pdb.set_trace()
+    t2 = dt.datetime.now()
+    print ("read_file takes " + str((t2-t1).seconds / 60.)) + " mins"
+
+    # search for iscat events
+    t1 = dt.datetime.now()
+    real_bmnums = [int(x) for x in all_beams.keys() if len(all_beams[x]['times'])>0]
+    events = {}
+    if search_allbeams:
+        for b in real_bmnums:
+            # search for event. Returns a dict of dicts with a single bmnum as keyword.
+            # this is because search_iscat_event workds on a single beam at a time
+            events.update(search_iscat_event(all_beams, ctr_time, b, params,
+                low_vel_iscat_event_only=low_vel_iscat_event_only))
+    else:
+        events.update(search_iscat_event(all_beams, ctr_time, bmnum, params,
+            low_vel_iscat_event_only=low_vel_iscat_event_only))
+    t2 = dt.datetime.now()
+    print ("iscat event searching takes " + str((t2-t1).seconds / 60.)) + " mins"
+
+    # remove gscat
+    if no_gscat:
+        t1 = dt.datetime.now()
+        for bn in events.keys():
+            remove_gscat(events[bn])
+        t2 = dt.datetime.now()
+        print ("remove_gscat takes " + str((t2-t1).seconds / 60.)) + " mins"
+
+    return events
 
 
 def rtiplot(rad, stm, etm, bmnum, params, data_dict=None, fileType="fitacf"):
@@ -656,7 +784,7 @@ def rtiplot(rad, stm, etm, bmnum, params, data_dict=None, fileType="fitacf"):
     return fig 
 
 # run the code
-def run_code(plotRti=False):
+def test_code(plotRti=False):
 
     # input parameters
     ctr_time = dt.datetime(2010,1,15)
@@ -676,8 +804,8 @@ def run_code(plotRti=False):
     fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', '{date}.{hour}......{radar}.{ftype}']
     #davitpy.rcParams['verbosity'] = "debug"
 
-    stm = ctr_time - dt.timedelta(days=1)
-    etm = ctr_time + dt.timedelta(days=2)
+    stm = ctr_time - dt.timedelta(days=0)
+    etm = ctr_time + dt.timedelta(days=1)
     #etm = ctr_time + dt.timedelta(hours=12)
 
 
@@ -687,33 +815,39 @@ def run_code(plotRti=False):
     #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitacff"
     #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitexf"
 
-    # make an rti plot
-    if plotRti:
-        # read the file
-        t1 = dt.datetime.now()
-        data_dict = read_file_for_rtiplot(ffname, rad, stm, etm, bmnum, params, ftype=ftype)
-        t2 = dt.datetime.now()
-        print ("read_file takes " + str((t2-t1).seconds / 60.)) + " mins"
-    else:
-        # read the file
-        t1 = dt.datetime.now()
-        data_dict = read_file(ffname, rad, stm, etm, params, ftype=ftype)
-        t2 = dt.datetime.now()
-        print ("read_file takes " + str((t2-t1).seconds / 60.)) + " mins"
+#    # make an rti plot
+#    if plotRti:
+#        # read the file
+#        t1 = dt.datetime.now()
+#        data_dict = read_file_for_rtiplot(ffname, rad, stm, etm, bmnum, params, ftype=ftype)
+#        t2 = dt.datetime.now()
+#        print ("read_file takes " + str((t2-t1).seconds / 60.)) + " mins"
+#    else:
+#        # read the file
+#        t1 = dt.datetime.now()
+#        data_dict = read_file(ffname, rad, stm, etm, params, ftype=ftype)
+#        t2 = dt.datetime.now()
+#        print ("read_file takes " + str((t2-t1).seconds / 60.)) + " mins"
+#
+#    t1 = dt.datetime.now()
+#    #data_dict, clusters = search_iscat_event(data_dict, ctr_time, bmnum, params)
+#    data_dict = search_iscat_event(data_dict, ctr_time, bmnum, params,
+#                                   low_vel_iscat_event_only=False)
+#    t2 = dt.datetime.now()
+#    print ("search_iscat_event takes " + str((t2-t1).seconds / 60.)) + " mins"
 
-    t1 = dt.datetime.now()
-    #data_dict, clusters = search_iscat_event(data_dict, ctr_time, bmnum, params)
-    data_dict = search_iscat_event(data_dict, ctr_time, bmnum, params,
-                                   low_vel_iscat_event_only=True)
-    t2 = dt.datetime.now()
-    print ("search_iscat_event takes " + str((t2-t1).seconds / 60.)) + " mins"
-
     if plotRti:
+
+        events = iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
+                       params=["velocity"], low_vel_iscat_event_only=False,
+                       search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=ffname)
+        data_dict = events
+
         fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, fileType=ftype)
 
     return data_dict
 
 if __name__ == "__main__":
-    data_dict = run_code(plotRti=False)
-    #data_dict = run_code(plotRti=True)
+    #data_dict = test_code(plotRti=False)
+    data_dict = test_code(plotRti=True)
 

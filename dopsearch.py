@@ -11,14 +11,14 @@ from glob import glob
 import pdb
 import numpy as np
 
-def fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
+def fetch_concat(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt):
 
-    """ fetches files for three days centered at ctr_time.day, then unzips and concatenates
+    """ fetches files for three days centered at ctr_date.day, then unzips and concatenates
     them into a single file """
     
     # expend the time to three days
-    stime = ctr_time - dt.timedelta(days=1)
-    etime = ctr_time + dt.timedelta(days=2)
+    stime = ctr_date - dt.timedelta(days=1)
+    etime = ctr_date + dt.timedelta(days=2)
     radcode = localdict["radar"]
     ftype = localdict["ftype"]
     channel = localdict["channel"]
@@ -82,11 +82,11 @@ def boxcar_filter(fname):
 
     return ffname
 
-def prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
+def prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt):
     """ A wrapper for file fetching and boxcar filtering"""
 
     # fetch and concatenate the three consecutive days of data centered on the target date 
-    concated_file = fetch_concat(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
+    concated_file = fetch_concat(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt)
 
     # box car fiter the data
     ffname = boxcar_filter(concated_file)
@@ -246,7 +246,7 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
     # Initialize some things.
     data = dict()
 
-    plotrti=False
+    plotrti=True
 
     if not plotrti:
         # use the following data_keys if you do not want to plot the data using rtiplot function
@@ -662,7 +662,7 @@ def select_target_interval(data_dict, stm, etm):
 
     return data_dict
 
-def search_iscat_event(data_dict, ctr_time, bmnum, params, 
+def search_iscat_event(data_dict, ctr_date, bmnum, params, 
                        low_vel_iscat_event_only=True, no_gscat=False):
     """ do the classification for 3 days data one beam at a time.
     
@@ -721,9 +721,9 @@ def search_iscat_event(data_dict, ctr_time, bmnum, params,
         all_gscat = set(nodes_flat) - all_iscat
         change_gsflg(all_gscat, data_dict, gscat_value=1)
 
-    # limit the data to to the day of ctr_time(center date)
-    stm_target = ctr_time
-    etm_target = ctr_time + dt.timedelta(days=1)
+    # limit the data to to the day of ctr_date(center date)
+    stm_target = ctr_date
+    etm_target = ctr_date + dt.timedelta(days=1)
     data_dict = select_target_interval(data_dict, stm_target, etm_target)
 
     return {bmnum:data_dict}
@@ -764,7 +764,8 @@ def search_iscat_event(data_dict, ctr_time, bmnum, params,
 #
 #    return
 
-def iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
+def iscat_event_searcher(ctr_date, localdict,
+                   tmpdir=None, fnamefmt=None, localdirfmt=None, 
                    params=["velocity"], low_vel_iscat_event_only=False,
                    search_allbeams=True, bmnum=7, no_gscat=False, ffname=None):
     """ A wrapper that does all of file prepareting, file reading, and 
@@ -779,7 +780,9 @@ def iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
         bmnum argument only works in search_allbeams is set to False
     no_gscat : removes all the gscat
     ffname : string
-        if ffname is not set to None, ffname will be be read
+        if ffname is not set to None, ffname will be be read.
+        if ffname is None, then tmpdir, fnamefmt, localdirfmt all
+        must have to be set other that None.
 
     Returns : dict
         A dict of dicts in the form of {bmnum:dict}.
@@ -788,15 +791,15 @@ def iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
         if no_gscat==True, returns only the iscat (gsflg=0)
         
     """
-    stm = ctr_time - dt.timedelta(days=1)
-    etm = ctr_time + dt.timedelta(days=2)
+    stm = ctr_date - dt.timedelta(days=1)
+    etm = ctr_date + dt.timedelta(days=2)
     rad = localdict["radar"]
     ftype = localdict["ftype"]
 
     # prepare the data
     t1 = dt.datetime.now()
     if not ffname:
-        ffname = prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt) 
+        ffname = prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt) 
     t2 = dt.datetime.now()
     print ("prepare_file takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
@@ -814,10 +817,10 @@ def iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
         for b in real_bmnums:
             # search for event. Returns a dict of dicts with a single bmnum as keyword.
             # this is because search_iscat_event workds on a single beam at a time
-            events.update(search_iscat_event(all_beams, ctr_time, b, params,
+            events.update(search_iscat_event(all_beams, ctr_date, b, params,
                 low_vel_iscat_event_only=low_vel_iscat_event_only, no_gscat=no_gscat))
     else:
-        events.update(search_iscat_event(all_beams, ctr_time, bmnum, params,
+        events.update(search_iscat_event(all_beams, ctr_date, bmnum, params,
             low_vel_iscat_event_only=low_vel_iscat_event_only, no_gscat=no_gscat))
     t2 = dt.datetime.now()
     print ("iscat event searching process takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
@@ -847,8 +850,8 @@ def rtiplot(rad, stm, etm, bmnum, params, data_dict=None, fileType="fitacf"):
 def test_code(plotRti=False):
 
     # input parameters
-    ctr_time = dt.datetime(2010,1,15)
-    #ctr_time = dt.datetime(2008,9,17)
+    ctr_date = dt.datetime(2010,1,15)
+    #ctr_date = dt.datetime(2008,9,17)
     rad = "bks"
     channel = None
     bmnum = 7
@@ -864,13 +867,13 @@ def test_code(plotRti=False):
     fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', '{date}.{hour}......{radar}.{ftype}']
     #davitpy.rcParams['verbosity'] = "debug"
 
-    stm = ctr_time - dt.timedelta(days=0)
-    etm = ctr_time + dt.timedelta(days=1)
-    #etm = ctr_time + dt.timedelta(hours=12)
+    stm = ctr_date - dt.timedelta(days=0)
+    etm = ctr_date + dt.timedelta(days=1)
+    #etm = ctr_date + dt.timedelta(hours=12)
 
 
     # prepare the data
-    #ffname = prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt)
+    #ffname = prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt)
     ffname = tmpdir + "20100114.000000.20100117.000000.bks.fitacff"
     #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitacff"
     #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitexf"
@@ -890,17 +893,18 @@ def test_code(plotRti=False):
 #        print ("read_file takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 #
 #    t1 = dt.datetime.now()
-#    #data_dict, clusters = search_iscat_event(data_dict, ctr_time, bmnum, params)
-#    data_dict = search_iscat_event(data_dict, ctr_time, bmnum, params,
+#    #data_dict, clusters = search_iscat_event(data_dict, ctr_date, bmnum, params)
+#    data_dict = search_iscat_event(data_dict, ctr_date, bmnum, params,
 #                                   low_vel_iscat_event_only=False)
 #    t2 = dt.datetime.now()
 #    print ("search_iscat_event takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
     if plotRti:
 
-        events = iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
+        events = iscat_event_searcher(ctr_date, localdict, localdirfmt=localdirfmt,
+                       tmpdir=tmpdir, fnamefmt=fnamefmt,
                        params=params, low_vel_iscat_event_only=False,
-                       search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=ffname)
+                       search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=None)
         data_dict = events
 
         fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, fileType=ftype)

@@ -80,11 +80,6 @@ def boxcar_filter(fname):
             print "file " + fname + " exists"
             ffname = fname
 
-#        # move the data
-#        os.system("mv /tmp/sd/" + ffname.split("/")[-1] + " ./data/")
-#        ffname = "./data/" + ffname.split("/")[-1]
-
-
     return ffname
 
 def prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt):
@@ -730,7 +725,6 @@ def search_iscat_event(data_dict, ctr_time, bmnum, params,
     stm_target = ctr_time
     etm_target = ctr_time + dt.timedelta(days=1)
     data_dict = select_target_interval(data_dict, stm_target, etm_target)
-    pdb.set_trace()
 
     return {bmnum:data_dict}
 
@@ -809,7 +803,6 @@ def iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
     t1 = dt.datetime.now()
     # read the file. Returns a dict of dicts with bmnums as key words.
     all_beams = read_file(ffname, rad, stm, etm, params, ftype=ftype)
-    #pdb.set_trace()
     t2 = dt.datetime.now()
     print ("read_file takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 

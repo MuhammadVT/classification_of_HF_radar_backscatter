@@ -421,7 +421,7 @@ def search_tree(data, start, data_dict):
                         break
 
                     tm_next = data_dict['times'][end_indx + k]
-                    del_time = round((tm_next - end_tm).seconds / 60.)
+                    del_time = round((tm_next - end_tm).total_seconds() / 60.)
 
                     k += 1
                 except:
@@ -651,10 +651,21 @@ def remove_gscat(all_iscat, data_dict):
                 iscat_dict[ky].append(data_dict[ky][tm])
 
     t2 = dt.datetime.now()
-    print ("remove_gscat takes " + str((t2-t1).seconds / 60.)) + " mins"
+    print ("remove_gscat takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
     return iscat_dict
 
+def select_target_interval(data_dict, stm, etm):
+    
+    """ selects data for a time interval between stm and etm """
+    stm_indx = np.argmin(np.array([abs((x-stm).total_seconds()) for x in data_dict['times']]))
+    etm_indx = np.argmin(np.array([abs((x-etm).total_seconds()) for x in data_dict['times']]))
+
+    kys_tmp = data_dict.keys()
+    for ky in kys_tmp:
+        data_dict[ky] = data_dict[ky][stm_indx:etm_indx+1]
+
+    return data_dict
 
 def search_iscat_event(data_dict, ctr_time, bmnum, params, 
                        low_vel_iscat_event_only=True, no_gscat=False):
@@ -704,18 +715,24 @@ def search_iscat_event(data_dict, ctr_time, bmnum, params,
         if event_logic:
             # change the gsflg values to 0(isact)
             change_gsflg(cluster, data_dict, gscat_value=0)
-            all_iscat.update(cluster)
+            all_iscat.update(cluster)    
 
     nodes_flat = set([x for y in nodes for x in y])
     if no_gscat:
-        iscat_dict = remove_gscat(all_iscat, data_dict)
-        return {bmnum:iscat_dict}
+        # remove gscat points
+        data_dict = remove_gscat(all_iscat, data_dict)
     else:
         # change the gsflg values of non-events to 1(gsact)
         all_gscat = set(nodes_flat) - all_iscat
         change_gsflg(all_gscat, data_dict, gscat_value=1)
-        return {bmnum:data_dict}
 
+    # limit the data to to the day of ctr_time(center date)
+    stm_target = ctr_time
+    etm_target = ctr_time + dt.timedelta(days=1)
+    data_dict = select_target_interval(data_dict, stm_target, etm_target)
+    pdb.set_trace()
+
+    return {bmnum:data_dict}
 
 #def remove_gscat(data_dict):
 #    """ removes the gscat and leave only iscat
@@ -787,14 +804,14 @@ def iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
     if not ffname:
         ffname = prepare_file(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt) 
     t2 = dt.datetime.now()
-    print ("prepare_file takes " + str((t2-t1).seconds / 60.)) + " mins"
+    print ("prepare_file takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
     t1 = dt.datetime.now()
     # read the file. Returns a dict of dicts with bmnums as key words.
     all_beams = read_file(ffname, rad, stm, etm, params, ftype=ftype)
     #pdb.set_trace()
     t2 = dt.datetime.now()
-    print ("read_file takes " + str((t2-t1).seconds / 60.)) + " mins"
+    print ("read_file takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
     # search for iscat events
     t1 = dt.datetime.now()
@@ -810,7 +827,7 @@ def iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
         events.update(search_iscat_event(all_beams, ctr_time, bmnum, params,
             low_vel_iscat_event_only=low_vel_iscat_event_only, no_gscat=no_gscat))
     t2 = dt.datetime.now()
-    print ("iscat event searching process takes " + str((t2-t1).seconds / 60.)) + " mins"
+    print ("iscat event searching process takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
     return events
 
@@ -871,25 +888,25 @@ def test_code(plotRti=False):
 #        t1 = dt.datetime.now()
 #        data_dict = read_file_for_rtiplot(ffname, rad, stm, etm, bmnum, params, ftype=ftype)
 #        t2 = dt.datetime.now()
-#        print ("read_file takes " + str((t2-t1).seconds / 60.)) + " mins"
+#        print ("read_file takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 #    else:
 #        # read the file
 #        t1 = dt.datetime.now()
 #        data_dict = read_file(ffname, rad, stm, etm, params, ftype=ftype)
 #        t2 = dt.datetime.now()
-#        print ("read_file takes " + str((t2-t1).seconds / 60.)) + " mins"
+#        print ("read_file takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 #
 #    t1 = dt.datetime.now()
 #    #data_dict, clusters = search_iscat_event(data_dict, ctr_time, bmnum, params)
 #    data_dict = search_iscat_event(data_dict, ctr_time, bmnum, params,
 #                                   low_vel_iscat_event_only=False)
 #    t2 = dt.datetime.now()
-#    print ("search_iscat_event takes " + str((t2-t1).seconds / 60.)) + " mins"
+#    print ("search_iscat_event takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
     if plotRti:
 
         events = iscat_event_searcher(ctr_time, localdirfmt, localdict, tmpdir, fnamefmt,
-                       params=["velocity"], low_vel_iscat_event_only=False,
+                       params=params, low_vel_iscat_event_only=False,
                        search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=ffname)
         data_dict = events
 

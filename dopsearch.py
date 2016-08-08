@@ -710,17 +710,22 @@ def search_iscat_event(data_dict, ctr_date, bmnum, params,
 
     nodes_flat = set([x for y in nodes for x in y])
     if no_gscat:
-        # remove gscat points
-        data_dict = remove_gscat(all_iscat, data_dict)
+        # check whether all_iscat is empty
+        if len(all_iscat) > 0:
+            # remove gscat points
+            data_dict = remove_gscat(all_iscat, data_dict)
+        else:
+            data_dict = None
     else:
         # change the gsflg values of non-events to 1(gsact)
         all_gscat = set(nodes_flat) - all_iscat
         change_gsflg(all_gscat, data_dict, gscat_value=1)
 
     # limit the data to to the day of ctr_date(center date)
-    stm_target = ctr_date
-    etm_target = ctr_date + dt.timedelta(days=1)
-    data_dict = select_target_interval(data_dict, stm_target, etm_target)
+    if data_dict is not None:
+        stm_target = ctr_date
+        etm_target = ctr_date + dt.timedelta(days=1)
+        data_dict = select_target_interval(data_dict, stm_target, etm_target)
 
     return {bmnum:data_dict}
 

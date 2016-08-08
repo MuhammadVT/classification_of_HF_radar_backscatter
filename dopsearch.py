@@ -725,7 +725,7 @@ def search_iscat_event(data_dict, ctr_date, bmnum, params,
     if data_dict is not None:
         stm_target = ctr_date
         etm_target = ctr_date + dt.timedelta(days=1)
-        data_dict = select_target_interval(data_dict, stm_target, etm_target)
+        #data_dict = select_target_interval(data_dict, stm_target, etm_target)
 
     return {bmnum:data_dict}
 
@@ -826,11 +826,13 @@ def iscat_event_searcher(ctr_date, localdict,
     return events
 
 
-def rtiplot(rad, stm, etm, bmnum, params, data_dict=None, fileType="fitacf"):
+def rtiplot(rad, stm, etm, bmnum, params, data_dict=None,
+            fileType="fitacf", fileName=None):
 
     from myrti import plot_rti
 
-    data_dict = data_dict[bmnum]
+    if data_dict is not None:
+        data_dict = data_dict[bmnum]
     scales = [[-120, 120]]
     yrng = [0, 70]
     filtered=False
@@ -838,7 +840,7 @@ def rtiplot(rad, stm, etm, bmnum, params, data_dict=None, fileType="fitacf"):
     #        params=["velocity"], scales=[[-120, 120]], colors="aj", yrng=[0, 70])
     fig = plot_rti(stm, rad, eTime=etm, bmnum=bmnum, data_dict=data_dict, gsct=True,
             params=params, scales=scales, colors="aj", yrng=yrng, fileType=fileType,
-            filtered=filtered)
+            filtered=filtered, fileName=fileName)
 
 
     plt.show()
@@ -848,33 +850,36 @@ def rtiplot(rad, stm, etm, bmnum, params, data_dict=None, fileType="fitacf"):
 def test_code(plotRti=False):
 
     # input parameters
-    ctr_date = dt.datetime(2010,1,15)
-    #ctr_date = dt.datetime(2008,9,17)
+    #ctr_date = dt.datetime(2010,1,15)
+    ctr_date = dt.datetime(2008,9,17)
     rad = "bks"
     channel = None
     bmnum = 7
     params=['velocity']
-    ftype = "fitacf"
-    #ftype = "fitex"
+    #ftype = "fitacf"
+    ftype = "fitex"
     filtered = True
     scr = "local"
     localdirfmt = "/sd-data/{year}/{ftype}/{radar}/"
     localdict = {"ftype" : ftype, "radar" : rad, "channel" : channel}
     #tmpdir = "/tmp/sd/"
+    #tmpdir = "/home/muhammad/Documents/Important/midlat_convection/data/bks/"
     tmpdir = "../data/"
     fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', '{date}.{hour}......{radar}.{ftype}']
     #davitpy.rcParams['verbosity'] = "debug"
 
+    # stm and etms used for rti plotting 
     stm = ctr_date - dt.timedelta(days=0)
-    etm = ctr_date + dt.timedelta(days=1)
-    #etm = ctr_date + dt.timedelta(hours=12)
+    #etm = ctr_date + dt.timedelta(days=1)
+    etm = ctr_date + dt.timedelta(hours=12)
 
 
     # prepare the data
     #ffname = prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt)
-    ffname = tmpdir + "20100114.000000.20100117.000000.bks.fitacff"
-    #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitacff"
-    #ffname = tmpdir + "20080916.000000.20080918.000000.bks.fitexf"
+    #ffname = tmpdir + "20100114.000000.20100117.000000.bks.fitacff"
+    #ffname = tmpdir + "20100114.000000.20100117.000000.bks.fitexf"
+    #ffname = tmpdir + "20080916.000000.20080919.000000.bks.fitacff"
+    ffname = tmpdir + "20080916.000000.20080919.000000.bks.fitexf"
 
 #    # make an rti plot
 #    if plotRti:
@@ -902,10 +907,14 @@ def test_code(plotRti=False):
         events = iscat_event_searcher(ctr_date, localdict, localdirfmt=localdirfmt,
                        tmpdir=tmpdir, fnamefmt=fnamefmt,
                        params=params, low_vel_iscat_event_only=False,
-                       search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=None)
+                       search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=ffname)
         data_dict = events
 
-        fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, fileType=ftype)
+        fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, 
+                      fileType=ftype)
+        fig.savefig("./plots/"+ctr_date.strftime("%Y%m%d.") + ftype +  ".bm" +\
+                    str(bmnum) + ".rti.png",
+                    dpi=300)
 
     return data_dict
 

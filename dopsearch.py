@@ -725,7 +725,7 @@ def search_iscat_event(data_dict, ctr_date, bmnum, params,
     if data_dict is not None:
         stm_target = ctr_date
         etm_target = ctr_date + dt.timedelta(days=1)
-        #data_dict = select_target_interval(data_dict, stm_target, etm_target)
+        data_dict = select_target_interval(data_dict, stm_target, etm_target)
 
     return {bmnum:data_dict}
 
@@ -902,7 +902,6 @@ def test_code(plotRti=False):
 #    t2 = dt.datetime.now()
 #    print ("search_iscat_event takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
-    if plotRti:
 
         events = iscat_event_searcher(ctr_date, localdict, localdirfmt=localdirfmt,
                        tmpdir=tmpdir, fnamefmt=fnamefmt,
@@ -910,6 +909,7 @@ def test_code(plotRti=False):
                        search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=ffname)
         data_dict = events
 
+    if plotRti:
         fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, 
                       fileType=ftype)
         fig.savefig("./plots/"+ctr_date.strftime("%Y%m%d.") + ftype +  ".bm" +\
@@ -919,6 +919,6 @@ def test_code(plotRti=False):
     return data_dict
 
 if __name__ == "__main__":
-    #data_dict = test_code(plotRti=False)
-    data_dict = test_code(plotRti=True)
+    data_dict = test_code(plotRti=False)
+    #data_dict = test_code(plotRti=True)
 

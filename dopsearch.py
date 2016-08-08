@@ -611,7 +611,6 @@ def remove_gscat(all_iscat, data_dict):
 
     
     """
-    t1 = dt.datetime.now()
 
     # write all_iscat set as list of lists. Each list element stors iscat cells for a given time
     tm_indices = sorted(list(set([x[0] for x in all_iscat])))
@@ -644,9 +643,6 @@ def remove_gscat(all_iscat, data_dict):
                 iscat_dict[ky][i] = [data_dict[ky][tm][ix] for ix in indx_tmp]
             if ky in kys_b:
                 iscat_dict[ky].append(data_dict[ky][tm])
-
-    t2 = dt.datetime.now()
-    print ("remove_gscat takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
     return iscat_dict
 
@@ -797,20 +793,17 @@ def iscat_event_searcher(ctr_date, localdict,
     ftype = localdict["ftype"]
 
     # prepare the data
-    t1 = dt.datetime.now()
     if not ffname:
         ffname = prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt) 
-    t2 = dt.datetime.now()
-    print ("prepare_file takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
-    t1 = dt.datetime.now()
+#    t1 = dt.datetime.now()
     # read the file. Returns a dict of dicts with bmnums as key words.
     all_beams = read_file(ffname, rad, stm, etm, params, ftype=ftype)
-    t2 = dt.datetime.now()
-    print ("read_file takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
+#    t2 = dt.datetime.now()
+#    print ("read_file takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
     # search for iscat events
-    t1 = dt.datetime.now()
+#    t1 = dt.datetime.now()
     real_bmnums = [int(x) for x in all_beams.keys() if len(all_beams[x]['times'])>0]
     events = {}
     if search_allbeams:
@@ -822,8 +815,8 @@ def iscat_event_searcher(ctr_date, localdict,
     else:
         events.update(search_iscat_event(all_beams, ctr_date, bmnum, params,
             low_vel_iscat_event_only=low_vel_iscat_event_only, no_gscat=no_gscat))
-    t2 = dt.datetime.now()
-    print ("iscat event searching process takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
+#    t2 = dt.datetime.now()
+#    print ("iscat event searching process takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
     return events
 

@@ -304,6 +304,14 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
 
         myBeam = myPtr.readRec()
 
+    # remove a beam data entry if it is empty
+    for bn in all_beams.keys():
+        if all_beams[bn]['times'] == []:
+            all_beams.pop(bn)
+    # set all_beams to None if it is an empty dict
+    if all_beams  == {}:
+        all_beams = None
+
     return all_beams
 
 def read_file(ffname, rad, stm, etm, params, ftype="fitacf"):
@@ -312,9 +320,9 @@ def read_file(ffname, rad, stm, etm, params, ftype="fitacf"):
     """
 
     myPtr = radDataOpen(stm, rad, eTime=etm, fileName=ffname, fileType=ftype)
-    data_dict = read_data(myPtr, params=params, tbands=None)
+    beams_dict = read_data(myPtr, params=params, tbands=None)
 
-    return data_dict 
+    return beams_dict 
 
 
 def read_file_for_rtiplot(ffname, rad, stm, etm, bmnum, params, ftype="fitacf"):
@@ -324,17 +332,20 @@ def read_file_for_rtiplot(ffname, rad, stm, etm, bmnum, params, ftype="fitacf"):
     """
 
     myPtr = radDataOpen(stm, rad, eTime=etm, fileName=ffname, fileType=ftype)
-    data_dict = read_data_for_rtiplot(myPtr, bmnum, params=params, tbands=None)
+    beams_dict = read_data_for_rtiplot(myPtr, bmnum, params=params, tbands=None)
 
-    return data_dict 
+    return beams_dict 
 
 def create_nodes(data_dict):
     """ Create nodes using time indices and gate numbers from the data_dict. 
     Nondes are list of lists. Each list element is a collection of nodes for a given time_index
     A node is a range-gate cell in the rti plot.
+
+    data_dict : dict
+        a dict that holds parameters and their values of a beam data
     """
 
-    nodes = [[(x,y) for y in data_dict['slist'][x]] for x in xrange(len(data_dict['times']))]
+    nodes = [[(i,y) for y in data_dict['slist'][i]] for i in xrange(len(data_dict['times']))]
 
     return nodes
 
@@ -658,7 +669,7 @@ def select_target_interval(data_dict, stm, etm):
 
     return data_dict
 
-def search_iscat_event(data_dict, ctr_date, bmnum, params, 
+def search_iscat_event(beam_dict, ctr_date, bmnum, params, 
                        low_vel_iscat_event_only=True, no_gscat=False):
     """ do the classification for 3 days data one beam at a time.
     
@@ -673,12 +684,12 @@ def search_iscat_event(data_dict, ctr_date, bmnum, params,
     # create nodes, whic is a list of lists, from data_dict.
     # Each node is represented by (time_index, gate_number)
 
-    data_dict = data_dict[bmnum]
+    data_dict = beam_dict[bmnum]
     nodes = create_nodes(data_dict)
 
     # cluster the data using depth_first_search algorithm
 
-    # cluster the data
+    # cluster the data using breath_first_search algorithm
     clusters = []
     visited_nodes_all = set() 
     start_node = find_start_node(nodes, visited_nodes=None)
@@ -809,21 +820,24 @@ def iscat_event_searcher(ctr_date, localdict,
 
     # search for iscat events
 #    t1 = dt.datetime.now()
-    real_bmnums = [int(x) for x in all_beams.keys() if len(all_beams[x]['times'])>0]
-    events = {}
-    if search_allbeams:
-        for b in real_bmnums:
-            # search for event. Returns a dict of dicts with a single bmnum as keyword.
-            # this is because search_iscat_event workds on a single beam at a time
-            events.update(search_iscat_event(all_beams, ctr_date, b, params,
-                low_vel_iscat_event_only=low_vel_iscat_event_only, no_gscat=no_gscat))
+    real_bmnums = [int(x) for x in all_beams.keys()]
+    if len(real_bmnums) == 0:
+        events = None
     else:
-        events.update(search_iscat_event(all_beams, ctr_date, bmnum, params,
-            low_vel_iscat_event_only=low_vel_iscat_event_only, no_gscat=no_gscat))
-#    t2 = dt.datetime.now()
-#    print ("iscat event searching process takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
+        events = {}
+        if search_allbeams:
+            for b in real_bmnums:
+                # search for event. Returns a dict of dicts with a single bmnum as keyword.
+                # this is because search_iscat_event workds on a single beam at a time
+                events.update(search_iscat_event(all_beams, ctr_date, b, params,
+                    low_vel_iscat_event_only=low_vel_iscat_event_only, no_gscat=no_gscat))
+        else:
+            events.update(search_iscat_event(all_beams, ctr_date, bmnum, params,
+                low_vel_iscat_event_only=low_vel_iscat_event_only, no_gscat=no_gscat))
+    #    t2 = dt.datetime.now()
+    #    print ("iscat event searching process takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
-    return events
+        return events
 
 
 def rtiplot(rad, stm, etm, bmnum, params, data_dict=None,

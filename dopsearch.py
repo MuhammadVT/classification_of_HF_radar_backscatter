@@ -903,11 +903,11 @@ def test_code(plotRti=False):
 #    print ("search_iscat_event takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
 
-        events = iscat_event_searcher(ctr_date, localdict, localdirfmt=localdirfmt,
-                       tmpdir=tmpdir, fnamefmt=fnamefmt,
-                       params=params, low_vel_iscat_event_only=False,
-                       search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=ffname)
-        data_dict = events
+    events = iscat_event_searcher(ctr_date, localdict, localdirfmt=localdirfmt,
+                   tmpdir=tmpdir, fnamefmt=fnamefmt,
+                   params=params, low_vel_iscat_event_only=False,
+                   search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=ffname)
+    data_dict = events
 
     if plotRti:
         fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, 
@@ -919,6 +919,7 @@ def test_code(plotRti=False):
     return data_dict
 
 if __name__ == "__main__":
-    data_dict = test_code(plotRti=False)
+    pass
+    #data_dict = test_code(plotRti=False)
     #data_dict = test_code(plotRti=True)
 

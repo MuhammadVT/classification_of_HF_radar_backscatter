@@ -344,8 +344,12 @@ def create_nodes(data_dict):
     data_dict : dict
         a dict that holds parameters and their values of a beam data
     """
+    
+    # exclude the rage gates below 7
+    nodes = [[(i,y) for y in data_dict['slist'][i] if y >=7] for i in xrange(len(data_dict['times']))]
 
-    nodes = [[(i,y) for y in data_dict['slist'][i]] for i in xrange(len(data_dict['times']))]
+#    # remove the empty entries
+#    nodes = [x for x in nodes if x!=[]]
 
     return nodes
 
@@ -356,7 +360,7 @@ def find_start_node(nodes, visited_nodes=None):
     start_node = None
     for sublist in nodes:
         for itm in sublist:
-            if itm[1] >=7 and (itm not in visited_nodes):
+            if (itm not in visited_nodes):
                 start_node = itm
                 break
         if start_node is not None:
@@ -364,21 +368,61 @@ def find_start_node(nodes, visited_nodes=None):
     return start_node
 
 
-def create_graph(vertex, data):
-    """ all nodes should be fed to data argument """
+def create_graph(vertex, nodes, data_dict, visited_nodes=None):
+    """ all nodes should be fed to nodes argument """
+
+    yy = [vertex[1] + yi for yi in [-1, 0, 1]]  #range-gate indices centered at the range-gate index of the vertex 
+    yy = [x for x in yy if x >= 7]      # remove points below rage-gate 7
 
     tm_indx = vertex[0]
-    if tm_indx == 0:
-        xx = [0, 1]   
-    elif tm_indx == len(data)-1:
-        xx = [tm_indx, tm_indx-1]  # time indices centered at the time index of the vertex 
-    else:   
-        xx = [vertex[0] + yi for yi in [-1, 0, 1]]  # time indices centered at the time index of the vertex 
-    yy = [vertex[1] + yi for yi in [-1, 0, 1]]  #range-gate indices centered at the range-gate index of the vertex 
+    deltm_lim = 6.0
+    xx = [tm_indx]
+    k = tm_indx + 1
+    tm_now = data_dict['times'][tm_indx]
+    try:
+        tm_next = data_dict['times'][k]
+        del_time = round(abs((tm_next - tm_now).total_seconds()) / 60.)
+        while del_time<deltm_lim:
+            gates_tmp = set([t[1] for t in nodes[k]]).intersection(set(yy))
+            #if nodes[k] != []:
+            if len(gates_tmp)>0:
+                xx.append(k)   
+                break
+            else:
+                #if data_dict["times"][vertex[0]] > dt.datetime(2010, 1, 15, 12, 30):
+                #    pdb.set_trace()
+                k += 1
+                tm_next = data_dict['times'][k]
+                del_time = round(abs((tm_next - tm_now).total_seconds()) / 60.)
+
+    except IndexError:
+        pass
+
+    k = tm_indx - 1
+    try:
+        tm_next = data_dict['times'][k]
+        del_time = round(abs((tm_now - tm_next).total_seconds()) / 60.)
+        while del_time<deltm_lim:
+            gates_tmp = set([t[1] for t in nodes[k]]).intersection(set(yy))
+            #if nodes[k] != []:
+            if len(gates_tmp)>0:
+                xx.append(k)   
+                xx.insert(0, k)
+                break
+            else:
+                k -= 1
+                tm_next = data_dict['times'][k]
+                del_time = round(abs((tm_now - tm_next).total_seconds()) / 60.)
+
+    except IndexError:
+        pass
+
 
     # create a tuple that inclues actual neighbering vortice
-    xy = [(i,j) for i in xx for j in set([x[1] for x in data[i]]).intersection(set(yy))] 
+    xy = [(i,j) for i in xx for j in set([x[1] for x in nodes[i]]).intersection(set(yy))] 
     xy.remove(vertex)    # remove the vertex from xy 
+    if visited_nodes is not None:
+        xy = [x for x in xy if x not in visited_nodes]
     adjacent_nodes = set()
     for tpl in xy:
         adjacent_nodes.add(tpl)
@@ -386,52 +430,25 @@ def create_graph(vertex, data):
     return G
 
 
-def search_tree(data, start, data_dict):
-    """ all nodes should be fed to data argument """
+def search_tree(start, nodes, data_dict, visited_nodes=None):
+    """ all nodes should be fed to nodes argument """
 
     # create a grash as a start
-    G = create_graph(start, data)
+    G = create_graph(start, nodes, data_dict, visited_nodes=visited_nodes)
     # do the breath_firt_search
     visited = set()
     queue = [start]
     while queue:
         vertex = queue.pop(0)
 
-        if (vertex[1] >= 7) and (vertex not in visited):
+        if (vertex not in visited):
             visited.add(vertex)
             queue.extend(G[vertex] - visited)
         try:
             next_node = queue[0]
-            G = create_graph(next_node, data)
-        except:
-
-            end_indx = max([x[0] for x in visited])
-            gates_tmp = [x[1] for x in visited if x[0]==end_indx]
-            possible_gates = set([x for y in gates_tmp \
-                                for x in [y-1, y, y+1]])
-
-            k = 2
-            end_tm = data_dict['times'][end_indx]
-            del_time = 0
-
-            while del_time<6.0:
-            #while k<=6:
-                # use try-except to avoid hitting the end of time indices 
-                try:
-                    next_gates_tmp = [x[1] for x in data[end_indx+k]]
-                    actual_gates = possible_gates.intersection(set(next_gates_tmp))
-                    if (len(actual_gates)>0) and (max(actual_gates)>=7):
-                        queue = [x for x in data[end_indx+k] if x[1] in actual_gates]
-                        next_node = queue[0]
-                        G = create_graph(next_node, data)
-                        break
-
-                    tm_next = data_dict['times'][end_indx + k]
-                    del_time = round((tm_next - end_tm).total_seconds() / 60.)
-
-                    k += 1
-                except:
-                    break
+            G = create_graph(next_node, nodes, data_dict, visited_nodes=visited_nodes)
+        except IndexError:
+            pass
                     
     return visited
 
@@ -440,7 +457,7 @@ def push_stm_etm(cluster, data_dict, vel_threshold=15.):
     # write cluster as list of lists. Each list element stors the data for a given time
     tm_indices = sorted(list(set([x[0] for x in cluster])))
 
-    # change cluster to a list of lists
+    # change cluster to a list of lists (lol)
     cluster_lol = [[x for x in cluster if y==x[0]] for y in tm_indices]
 
     # initialize the time indices
@@ -694,7 +711,8 @@ def search_iscat_event(beam_dict, ctr_date, bmnum, params,
     visited_nodes_all = set() 
     start_node = find_start_node(nodes, visited_nodes=None)
     while start_node:
-        visited_nodes = search_tree(nodes, start_node, data_dict)    # returns a set
+        visited_nodes = search_tree(start_node, nodes, 
+                                    data_dict, visited_nodes=visited_nodes_all)    # returns a set
         clusters.append(visited_nodes)
         visited_nodes_all.update(visited_nodes) 
         #visited_nodes_all = set([x for y in clusters for x in y])
@@ -719,7 +737,7 @@ def search_iscat_event(beam_dict, ctr_date, bmnum, params,
             change_gsflg(cluster, data_dict, gscat_value=0)
             all_iscat.update(cluster)    
 
-    nodes_flat = set([x for y in nodes for x in y])
+    #nodes_flat = set([x for y in nodes for x in y])
     if no_gscat:
         # check whether all_iscat is empty
         if len(all_iscat) > 0:
@@ -729,14 +747,15 @@ def search_iscat_event(beam_dict, ctr_date, bmnum, params,
             data_dict = None
     else:
         # change the gsflg values of non-events to 1(gsact)
-        all_gscat = set(nodes_flat) - all_iscat
+        all_nodes_flat = [(i,y) for i in xrange(len(data_dict['times'])) for y in data_dict['slist'][i]]
+        all_gscat = set(all_nodes_flat) - all_iscat
         change_gsflg(all_gscat, data_dict, gscat_value=1)
 
     # limit the data to to the day of ctr_date(center date)
     if data_dict is not None:
         stm_target = ctr_date
         etm_target = ctr_date + dt.timedelta(days=1)
-        data_dict = select_target_interval(data_dict, stm_target, etm_target)
+        #data_dict = select_target_interval(data_dict, stm_target, etm_target)
 
     return {bmnum:data_dict}
 
@@ -832,21 +851,24 @@ def iscat_event_searcher(ctr_date, localdict,
                 events.update(search_iscat_event(all_beams, ctr_date, b, params,
                     low_vel_iscat_event_only=low_vel_iscat_event_only, no_gscat=no_gscat))
         else:
-            events.update(search_iscat_event(all_beams, ctr_date, bmnum, params,
-                low_vel_iscat_event_only=low_vel_iscat_event_only, no_gscat=no_gscat))
+            if bmnum in real_bmnums:
+                events.update(search_iscat_event(all_beams, ctr_date, bmnum, params,
+                    low_vel_iscat_event_only=low_vel_iscat_event_only, no_gscat=no_gscat))
+            else:
+                events = None
     #    t2 = dt.datetime.now()
     #    print ("iscat event searching process takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
-        return events
+    return events
 
 
-def rtiplot(rad, stm, etm, bmnum, params, data_dict=None,
+def rtiplot(rad, stm, etm, bmnum, params, beams_dict=None,
             fileType="fitacf", fileName=None):
 
     from myrti import plot_rti
 
-    if data_dict is not None:
-        data_dict = data_dict[bmnum]
+    if beams_dict is not None:
+        data_dict = beams_dict[bmnum]
     scales = [[-120, 120]]
     yrng = [0, 70]
     filtered=False
@@ -868,10 +890,10 @@ def test_code(plotRti=False):
     ctr_date = dt.datetime(2008,9,17)
     rad = "bks"
     channel = None
-    bmnum = 7
+    bmnum = 0
     params=['velocity']
-    #ftype = "fitacf"
-    ftype = "fitex"
+    ftype = "fitacf"
+    #ftype = "fitex"
     filtered = True
     scr = "local"
     localdirfmt = "/sd-data/{year}/{ftype}/{radar}/"
@@ -883,17 +905,17 @@ def test_code(plotRti=False):
     #davitpy.rcParams['verbosity'] = "debug"
 
     # stm and etms used for rti plotting 
-    stm = ctr_date - dt.timedelta(days=0)
-    #etm = ctr_date + dt.timedelta(days=1)
-    etm = ctr_date + dt.timedelta(hours=12)
+    stm = ctr_date - dt.timedelta(days=1)
+    etm = ctr_date + dt.timedelta(days=2)
+    #etm = ctr_date + dt.timedelta(hours=12)
 
 
     # prepare the data
     #ffname = prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt)
     #ffname = tmpdir + "20100114.000000.20100117.000000.bks.fitacff"
     #ffname = tmpdir + "20100114.000000.20100117.000000.bks.fitexf"
-    #ffname = tmpdir + "20080916.000000.20080919.000000.bks.fitacff"
-    ffname = tmpdir + "20080916.000000.20080919.000000.bks.fitexf"
+    ffname = tmpdir + "20080916.000000.20080919.000000.bks.fitacff"
+    #ffname = tmpdir + "20080916.000000.20080919.000000.bks.fitexf"
 
 #    # make an rti plot
 #    if plotRti:
@@ -921,19 +943,19 @@ def test_code(plotRti=False):
                    tmpdir=tmpdir, fnamefmt=fnamefmt,
                    params=params, low_vel_iscat_event_only=False,
                    search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=ffname)
-    data_dict = events
+    beams_dict = events
 
-    if plotRti:
-        fig = rtiplot(rad, stm, etm, bmnum, params, data_dict=data_dict, 
+    if (beams_dict is not None) and plotRti:
+        fig = rtiplot(rad, stm, etm, bmnum, params, beams_dict=beams_dict, 
                       fileType=ftype)
         fig.savefig("./plots/"+ctr_date.strftime("%Y%m%d.") + ftype +  ".bm" +\
                     str(bmnum) + ".rti.png",
                     dpi=300)
 
-    return data_dict
+    return beams_dict
 
 if __name__ == "__main__":
-    pass
+    #pass
     #data_dict = test_code(plotRti=False)
-    #data_dict = test_code(plotRti=True)
+    data_dict = test_code(plotRti=True)
 

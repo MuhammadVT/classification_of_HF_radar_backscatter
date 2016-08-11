@@ -389,8 +389,6 @@ def create_graph(vertex, nodes, data_dict, visited_nodes=None):
                 xx.append(k)   
                 break
             else:
-                #if data_dict["times"][vertex[0]] > dt.datetime(2010, 1, 15, 12, 30):
-                #    pdb.set_trace()
                 k += 1
                 tm_next = data_dict['times'][k]
                 del_time = round(abs((tm_next - tm_now).total_seconds()) / 60.)
@@ -755,7 +753,7 @@ def search_iscat_event(beam_dict, ctr_date, bmnum, params,
     if data_dict is not None:
         stm_target = ctr_date
         etm_target = ctr_date + dt.timedelta(days=1)
-        #data_dict = select_target_interval(data_dict, stm_target, etm_target)
+        data_dict = select_target_interval(data_dict, stm_target, etm_target)
 
     return {bmnum:data_dict}
 
@@ -890,7 +888,7 @@ def test_code(plotRti=False):
     ctr_date = dt.datetime(2008,9,17)
     rad = "bks"
     channel = None
-    bmnum = 0
+    bmnum = 1
     params=['velocity']
     ftype = "fitacf"
     #ftype = "fitex"
@@ -905,9 +903,10 @@ def test_code(plotRti=False):
     #davitpy.rcParams['verbosity'] = "debug"
 
     # stm and etms used for rti plotting 
-    stm = ctr_date - dt.timedelta(days=1)
-    etm = ctr_date + dt.timedelta(days=2)
-    #etm = ctr_date + dt.timedelta(hours=12)
+    stm = ctr_date - dt.timedelta(days=0)
+    etm = ctr_date + dt.timedelta(days=1)
+    #stm = ctr_date + dt.timedelta(days=1)
+    #etm = ctr_date + dt.timedelta(hours=24+8)
 
 
     # prepare the data
@@ -956,6 +955,6 @@ def test_code(plotRti=False):
 
 if __name__ == "__main__":
     #pass
-    #data_dict = test_code(plotRti=False)
-    data_dict = test_code(plotRti=True)
+    #beams_dict = test_code(plotRti=False)
+    beams_dict = test_code(plotRti=True)
 

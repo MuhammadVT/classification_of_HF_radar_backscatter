@@ -141,7 +141,7 @@ def read_data_for_rtiplot(myPtr, bmnum, params=["velocity"], tbands=None, coords
     data = dict()
 
     # use the following data_keys if you want to plot the data using rtiplot function
-    data_keys = ['vel', 'pow', 'wid', 'elev', 'phi0', 'times', 'freq', 'cpid',
+    data_keys = ['vel', 'pow', 'wid', 'elev', 'phi0', 'datetime', 'freq', 'cpid',
                  'nave', 'nsky', 'nsch', 'slist', 'mode', 'rsep', 'nrang',
                  'frang', 'gsflg', 'velocity_error', 'bmazm']
     for d in data_keys:
@@ -155,7 +155,7 @@ def read_data_for_rtiplot(myPtr, bmnum, params=["velocity"], tbands=None, coords
         if(myBeam.bmnum == bmnum and (myPtr.sTime <= myBeam.time)):
             if (myBeam.prm.tfreq >= tbands[0] and
                 myBeam.prm.tfreq <= tbands[1]):
-                data['times'].append(myBeam.time)
+                data['datetime'].append(myBeam.time)
                 data['bmazm'].append(myBeam.prm.bmazm)
                 data['cpid'].append(myBeam.cp)
                 data['nave'].append(myBeam.prm.nave)
@@ -246,16 +246,16 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
     # Initialize some things.
     data = dict()
 
-    plotrti=True
+    plotrti=False
 
     if not plotrti:
         # use the following data_keys if you do not want to plot the data using rtiplot function
-        data_keys = ['vel', 'times', 'slist', 'rsep', 'nrang', 'frang', 'gsflg', 'bmazm']
+        data_keys = ['vel', 'datetime', 'slist', 'rsep', 'nrang', 'frang', 'gsflg', 'bmazm']
 
     else:
 
         # use the following data_keys if you want to plot the data using rtiplot function
-        data_keys = ['vel', 'pow', 'wid', 'elev', 'phi0', 'times', 'freq', 'cpid',
+        data_keys = ['vel', 'pow', 'wid', 'elev', 'phi0', 'datetime', 'freq', 'cpid',
                      'nave', 'nsky', 'nsch', 'slist', 'mode', 'rsep', 'nrang',
                      'frang', 'gsflg', 'velocity_error', 'bmazm', 'clats', 'clons']
 
@@ -263,7 +263,7 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
         data[d] = []
 
     # list of dicts. each dict stores data for a certain bmnum
-    max_nbms = 30
+    max_nbms = 24
     all_beams = dict()
     all_beams = {bm:copy.deepcopy(data) for bm in xrange(max_nbms)}      
 
@@ -274,9 +274,9 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
         if(myBeam.time > myPtr.eTime): break
         if(myPtr.sTime <= myBeam.time):
             if (myBeam.prm.tfreq >= tbands[0] and
-                myBeam.prm.tfreq <= tbands[1]):
+                myBeam.prm.tfreq <= tbands[1] and myBeam.bmnum<max_nbms):
                 bmnum = myBeam.bmnum
-                all_beams[bmnum]['times'].append(myBeam.time)
+                all_beams[bmnum]['datetime'].append(myBeam.time)
                 all_beams[bmnum]['bmazm'].append(round(myBeam.prm.bmazm,2))
                 all_beams[bmnum]['rsep'].append(myBeam.prm.rsep)
                 all_beams[bmnum]['nrang'].append(myBeam.prm.nrang)
@@ -306,7 +306,7 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
 
     # remove a beam data entry if it is empty
     for bn in all_beams.keys():
-        if all_beams[bn]['times'] == []:
+        if all_beams[bn]['datetime'] == []:
             all_beams.pop(bn)
     # set all_beams to None if it is an empty dict
     if all_beams  == {}:
@@ -346,7 +346,7 @@ def create_nodes(data_dict):
     """
     
     # exclude the rage gates below 7
-    nodes = [[(i,y) for y in data_dict['slist'][i] if y >=7] for i in xrange(len(data_dict['times']))]
+    nodes = [[(i,y) for y in data_dict['slist'][i] if y >=7] for i in xrange(len(data_dict['datetime']))]
 
 #    # remove the empty entries
 #    nodes = [x for x in nodes if x!=[]]
@@ -378,9 +378,9 @@ def create_graph(vertex, nodes, data_dict, visited_nodes=None):
     deltm_lim = 6.0
     xx = [tm_indx]
     k = tm_indx + 1
-    tm_now = data_dict['times'][tm_indx]
+    tm_now = data_dict['datetime'][tm_indx]
     try:
-        tm_next = data_dict['times'][k]
+        tm_next = data_dict['datetime'][k]
         del_time = round(abs((tm_next - tm_now).total_seconds()) / 60.)
         while del_time<deltm_lim:
             gates_tmp = set([t[1] for t in nodes[k]]).intersection(set(yy))
@@ -390,7 +390,7 @@ def create_graph(vertex, nodes, data_dict, visited_nodes=None):
                 break
             else:
                 k += 1
-                tm_next = data_dict['times'][k]
+                tm_next = data_dict['datetime'][k]
                 del_time = round(abs((tm_next - tm_now).total_seconds()) / 60.)
 
     except IndexError:
@@ -398,7 +398,7 @@ def create_graph(vertex, nodes, data_dict, visited_nodes=None):
 
     k = tm_indx - 1
     try:
-        tm_next = data_dict['times'][k]
+        tm_next = data_dict['datetime'][k]
         del_time = round(abs((tm_now - tm_next).total_seconds()) / 60.)
         while del_time<deltm_lim:
             gates_tmp = set([t[1] for t in nodes[k]]).intersection(set(yy))
@@ -409,7 +409,7 @@ def create_graph(vertex, nodes, data_dict, visited_nodes=None):
                 break
             else:
                 k -= 1
-                tm_next = data_dict['times'][k]
+                tm_next = data_dict['datetime'][k]
                 del_time = round(abs((tm_now - tm_next).total_seconds()) / 60.)
 
     except IndexError:
@@ -461,8 +461,8 @@ def push_stm_etm(cluster, data_dict, vel_threshold=15.):
     # initialize the time indices
     stm_indx = tm_indices[0]
     etm_indx = tm_indices[-1]
-    stm = data_dict['times'][stm_indx]
-    etm = data_dict['times'][etm_indx]
+    stm = data_dict['datetime'][stm_indx]
+    etm = data_dict['datetime'][etm_indx]
 
     # check the time duration
     tm_del = etm - stm
@@ -537,8 +537,8 @@ def push_stm_etm(cluster, data_dict, vel_threshold=15.):
 
 
         # check the time duration of the cluster
-        stm = data_dict['times'][stm_indx]
-        etm = data_dict['times'][etm_indx]
+        stm = data_dict['datetime'][stm_indx]
+        etm = data_dict['datetime'][etm_indx]
         tm_del = etm - stm
         if tm_del <= dt.timedelta(hours=1):
             break
@@ -557,8 +557,8 @@ def isevent(cluster, data_dict, vel_threshold=15.):
 
     stm_indx = tm_indices[0]
     etm_indx = tm_indices[-1]
-    stm = data_dict['times'][stm_indx]
-    etm = data_dict['times'][etm_indx]
+    stm = data_dict['datetime'][stm_indx]
+    etm = data_dict['datetime'][etm_indx]
     tm_del = etm - stm
     result = False
     if tm_del <= dt.timedelta(hours=1):
@@ -649,7 +649,7 @@ def remove_gscat(all_iscat, data_dict):
         iscat_dict[d] = []
 
     kys_a = []    # stores parameters like "slist", "vel" 
-    kys_b = []    # stores parameters like "bmazm", "times"
+    kys_b = []    # stores parameters like "bmazm", "datetime"
 
     for ky in kys_tmp:
         if data_dict[ky] == []:
@@ -675,8 +675,8 @@ def remove_gscat(all_iscat, data_dict):
 def select_target_interval(data_dict, stm, etm):
     
     """ selects data for a time interval between stm and etm """
-    stm_indx = np.argmin(np.array([abs((x-stm).total_seconds()) for x in data_dict['times']]))
-    etm_indx = np.argmin(np.array([abs((x-etm).total_seconds()) for x in data_dict['times']]))
+    stm_indx = np.argmin(np.array([abs((x-stm).total_seconds()) for x in data_dict['datetime']]))
+    etm_indx = np.argmin(np.array([abs((x-etm).total_seconds()) for x in data_dict['datetime']]))
 
     kys_tmp = data_dict.keys()
     for ky in kys_tmp:
@@ -745,7 +745,7 @@ def search_iscat_event(beam_dict, ctr_date, bmnum, params,
             data_dict = None
     else:
         # change the gsflg values of non-events to 1(gsact)
-        all_nodes_flat = [(i,y) for i in xrange(len(data_dict['times'])) for y in data_dict['slist'][i]]
+        all_nodes_flat = [(i,y) for i in xrange(len(data_dict['datetime'])) for y in data_dict['slist'][i]]
         all_gscat = set(all_nodes_flat) - all_iscat
         change_gsflg(all_gscat, data_dict, gscat_value=1)
 
@@ -766,7 +766,7 @@ def search_iscat_event(beam_dict, ctr_date, bmnum, params,
 #    """
 #    kys_tmp = data_dict.keys()
 #    kys_a = []    # stores parameters like "slist", "vel" 
-#    kys_b = []    # stores parameters like "bmazm", "times"
+#    kys_b = []    # stores parameters like "bmazm", "datetime"
 #    for ky in kys_tmp:
 #        if data_dict[ky] == []:
 #            data_dict.pop(ky)
@@ -837,10 +837,10 @@ def iscat_event_searcher(ctr_date, localdict,
 
     # search for iscat events
 #    t1 = dt.datetime.now()
-    real_bmnums = [int(x) for x in all_beams.keys()]
-    if len(real_bmnums) == 0:
+    if all_beams is None:
         events = None
     else:
+        real_bmnums = [x for x in all_beams.keys()]
         events = {}
         if search_allbeams:
             for b in real_bmnums:
@@ -954,7 +954,7 @@ def test_code(plotRti=False):
     return beams_dict
 
 if __name__ == "__main__":
-    #pass
+    pass
     #beams_dict = test_code(plotRti=False)
-    beams_dict = test_code(plotRti=True)
+    #beams_dict = test_code(plotRti=True)
 

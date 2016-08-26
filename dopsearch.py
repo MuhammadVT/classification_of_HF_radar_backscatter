@@ -3,6 +3,7 @@ from davitpy.pydarn.sdio.fetchUtils import fetch_local_files
 from davitpy.pydarn.sdio import radDataOpen, radDataReadRec
 from davitpy.pydarn.sdio import radDataPtr
 import davitpy
+#davitpy.rcParams['verbosity'] = "debug-annoying"
 import logging
 import os
 import string
@@ -11,14 +12,20 @@ from glob import glob
 import pdb
 import numpy as np
 
-def fetch_concat(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt):
+def fetch_concat(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt, oneday_file_only=False):
 
     """ fetches files for three days centered at ctr_date.day, then unzips and concatenates
     them into a single file """
-    
-    # expend the time to three days
-    stime = ctr_date - dt.timedelta(days=1)
-    etime = ctr_date + dt.timedelta(days=2)
+  
+    # fetch one day worthy of data only
+    if oneday_file_only:
+        stime = ctr_date
+        etime = ctr_date + dt.timedelta(days=1)
+    else:
+        # expend the time to three days
+        stime = ctr_date - dt.timedelta(days=1)
+        etime = ctr_date + dt.timedelta(days=2)
+
     radcode = localdict["radar"]
     ftype = localdict["ftype"]
     channel = localdict["channel"]
@@ -82,11 +89,13 @@ def boxcar_filter(fname):
 
     return ffname
 
-def prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt):
+def prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt,
+                 oneday_file_only=False):
     """ A wrapper for file fetching and boxcar filtering"""
 
     # fetch and concatenate the three consecutive days of data centered on the target date 
-    concated_file = fetch_concat(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt)
+    concated_file = fetch_concat(ctr_date, localdirfmt, localdict, tmpdir,
+                                 fnamefmt, oneday_file_only=oneday_file_only)
 
     # box car fiter the data
     ffname = boxcar_filter(concated_file)
@@ -201,7 +210,7 @@ def read_data_for_rtiplot(myPtr, bmnum, params=["velocity"], tbands=None, coords
 
 
 
-def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
+def read_data(myPtr, params=["velocity"], tbands=None, coords="geo", plotrti=False):
 
     """Reads data from the file pointed to by myPtr
 
@@ -244,13 +253,11 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
         tbands = [8000, 20000]
 
     # Initialize some things.
-    data = dict()
-
-    plotrti=False
+    data = dict() 
 
     if not plotrti:
         # use the following data_keys if you do not want to plot the data using rtiplot function
-        data_keys = ['vel', 'datetime', 'slist', 'rsep', 'nrang', 'frang', 'gsflg', 'bmazm']
+        data_keys = ['vel', 'datetime', 'slist', 'rsep', 'frang', 'gsflg', 'bmazm']
 
     else:
 
@@ -268,7 +275,11 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
     all_beams = {bm:copy.deepcopy(data) for bm in xrange(max_nbms)}      
 
     # Read the parameters of interest.
-    myPtr.rewind()
+    try:
+        myPtr.rewind()
+    except:
+        all_beams = None
+        return all_beams
     myBeam = myPtr.readRec()
     while(myBeam is not None):
         if(myBeam.time > myPtr.eTime): break
@@ -279,7 +290,6 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
                 all_beams[bmnum]['datetime'].append(myBeam.time)
                 all_beams[bmnum]['bmazm'].append(round(myBeam.prm.bmazm,2))
                 all_beams[bmnum]['rsep'].append(myBeam.prm.rsep)
-                all_beams[bmnum]['nrang'].append(myBeam.prm.nrang)
                 all_beams[bmnum]['frang'].append(myBeam.prm.frang)
                 all_beams[bmnum]['gsflg'].append(myBeam.fit.gflg)
                 all_beams[bmnum]['slist'].append(myBeam.fit.slist)
@@ -287,6 +297,7 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
 ####################################################################
 
                 if plotrti:
+                    all_beams[bmnum]['nrang'].append(myBeam.prm.nrang)
                     all_beams[bmnum]['cpid'].append(myBeam.cp)
                     all_beams[bmnum]['nave'].append(myBeam.prm.nave)
                     all_beams[bmnum]['nsky'].append(myBeam.prm.noisesky)
@@ -314,13 +325,95 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo"):
 
     return all_beams
 
-def read_file(ffname, rad, stm, etm, params, ftype="fitacf"):
+def read_from_db(rad, stm, etm, ftype="fitacf",
+                 baseLocation="../data/sqlite3/",
+                 plotrti=False, ffname=None):
+
+        """ reads the data from db instead of files
+        ffname : None or string
+            ffname only works if plotrti is True
+        
+        
+        """
+        
+
+        import sqlite3
+        import json
+        import sys 
+        sys.path.append("../")
+        from move_to_db.month_to_season import get_season_by_month
+        
+
+        # make a db connection
+        dbName = rad + "_" + ftype + ".sqlite"
+        season = get_season_by_month(stm.month)
+        baseLocation = baseLocation + season + "/"
+        conn = sqlite3.connect(baseLocation + dbName, detect_types=sqlite3.PARSE_DECLTYPES)
+        cur = conn.cursor()
+
+        # get all the table names
+        cur.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        tbl_names = cur.fetchall()
+        tbl_names = [x[0] for x in tbl_names]
+
+        # get the available beam numbers 
+        beam_nums = [x.split("_")[-1][2:] for x in tbl_names]
+        beam_nums = [int(x) for x in beam_nums]
+    
+        # loop through each table
+        beams_dict = {}
+        for jj, bmnum in enumerate(beam_nums):
+            # get the data from db
+            command = "SELECT * FROM {tb}\
+                       WHERE datetime BETWEEN '{stm}' AND '{etm}'\
+                       ORDER BY datetime".\
+                       format(tb=tbl_names[jj], stm=stm, etm=etm)
+            cur.execute(command)
+            rws = cur.fetchall()
+            if rws:
+                data_dict = {}
+                data_dict['vel'] = [json.loads(x[0]) for x in rws]
+                data_dict['rsep'] = [x[1] for x in rws]
+                data_dict['frang'] = [x[2] for x in rws]
+                data_dict['bmazm'] = [x[3] for x in rws]
+                data_dict['slist'] = [json.loads(x[4]) for x in rws]
+                data_dict['gsflg'] = [json.loads(x[5]) for x in rws]
+                data_dict['datetime'] = [x[6] for x in rws]
+                beams_dict[bmnum] = data_dict
+        if not beams_dict:
+            beams_dict = None
+
+        if plotrti:
+            beams_dict_fl = read_file(ffname, rad, stm, etm, ['velocity'], ftype=ftype,
+                                  data_from_db=False, plotrti=plotrti)
+            if beams_dict_fl:
+                for jj, bmnum in enumerate(beam_nums):
+                    beams_dict_fl[bmnum]['vel'] =  beams_dict[bmnum]['vel']
+                    beams_dict_fl[bmnum]['rsep'] =  beams_dict[bmnum]['rsep']
+                    beams_dict_fl[bmnum]['frang'] =  beams_dict[bmnum]['frang']
+                    beams_dict_fl[bmnum]['bmazm'] =  beams_dict[bmnum]['bmazm']
+                    beams_dict_fl[bmnum]['slist'] =  beams_dict[bmnum]['slist']
+                    beams_dict_fl[bmnum]['gsflg'] =  beams_dict[bmnum]['gsflg']
+                    beams_dict_fl[bmnum]['datetime'] =  beams_dict[bmnum]['datetime']
+            beams_dict = beams_dict_fl
+
+        return beams_dict
+
+def read_file(ffname, rad, stm, etm, params, ftype="fitacf",
+              data_from_db=True, plotrti=False):
 
     """ A wrapper for reading a file. It reads all beams at once 
     """
-
-    myPtr = radDataOpen(stm, rad, eTime=etm, fileName=ffname, fileType=ftype)
-    beams_dict = read_data(myPtr, params=params, tbands=None)
+    if data_from_db:
+        beams_dict = read_from_db(rad, stm, etm, ftype=ftype,
+                                  plotrti=plotrti, ffname=ffname)
+        print "reading data from db"
+    else:
+        #try:
+        myPtr = radDataOpen(stm, rad, eTime=etm, fileName=ffname, fileType=ftype)
+        beams_dict = read_data(myPtr, params=params, tbands=None, plotrti=plotrti)
+        #except:
+        #    beams_dict = None
 
     return beams_dict 
 
@@ -796,7 +889,8 @@ def search_iscat_event(beam_dict, ctr_date, bmnum, params,
 def iscat_event_searcher(ctr_date, localdict,
                    tmpdir=None, fnamefmt=None, localdirfmt=None, 
                    params=["velocity"], low_vel_iscat_event_only=False,
-                   search_allbeams=True, bmnum=7, no_gscat=False, ffname=None):
+                   search_allbeams=True, bmnum=7, no_gscat=False, ffname=None,
+                   plotrti=False):
     """ A wrapper that does all of file prepareting, file reading, and 
         searching for iscat events.
         
@@ -811,7 +905,7 @@ def iscat_event_searcher(ctr_date, localdict,
     ffname : string
         if ffname is not set to None, ffname will be be read.
         if ffname is None, then tmpdir, fnamefmt, localdirfmt all
-        must have to be set other that None.
+        must have to be set other than None.
 
     Returns : dict
         A dict of dicts in the form of {bmnum:dict}.
@@ -831,7 +925,7 @@ def iscat_event_searcher(ctr_date, localdict,
 
 #    t1 = dt.datetime.now()
     # read the file. Returns a dict of dicts with bmnums as key words.
-    all_beams = read_file(ffname, rad, stm, etm, params, ftype=ftype)
+    all_beams = read_file(ffname, rad, stm, etm, params, ftype=ftype, plotrti=plotrti)
 #    t2 = dt.datetime.now()
 #    print ("read_file takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
@@ -886,35 +980,35 @@ def test_code(plotRti=False):
     # input parameters
     #ctr_date = dt.datetime(2010,1,15)
     ctr_date = dt.datetime(2008,9,17)
+    #ctr_date = dt.datetime(2012,1,21)
+    #rad = "fhe"
     rad = "bks"
     channel = None
-    bmnum = 1
+    bmnum = 7
     params=['velocity']
     ftype = "fitacf"
     #ftype = "fitex"
-    filtered = True
     scr = "local"
     localdirfmt = "/sd-data/{year}/{ftype}/{radar}/"
     localdict = {"ftype" : ftype, "radar" : rad, "channel" : channel}
     #tmpdir = "/tmp/sd/"
     #tmpdir = "/home/muhammad/Documents/Important/midlat_convection/data/bks/"
-    tmpdir = "../data/"
+    tmpdir = "../data/" + rad + "/"
     fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', '{date}.{hour}......{radar}.{ftype}']
-    #davitpy.rcParams['verbosity'] = "debug"
 
     # stm and etms used for rti plotting 
     stm = ctr_date - dt.timedelta(days=0)
     etm = ctr_date + dt.timedelta(days=1)
     #stm = ctr_date + dt.timedelta(days=1)
-    #etm = ctr_date + dt.timedelta(hours=24+8)
+    #etm = ctr_date + dt.timedelta(hours=12)
 
 
     # prepare the data
     #ffname = prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt)
-    #ffname = tmpdir + "20100114.000000.20100117.000000.bks.fitacff"
-    #ffname = tmpdir + "20100114.000000.20100117.000000.bks.fitexf"
-    ffname = tmpdir + "20080916.000000.20080919.000000.bks.fitacff"
-    #ffname = tmpdir + "20080916.000000.20080919.000000.bks.fitexf"
+    ffname = tmpdir + (ctr_date - dt.timedelta(days=1)).strftime("%Y%m%d.%H%M%S") + "." + \
+             (ctr_date + dt.timedelta(days=2)).strftime("%Y%m%d.%H%M%S") + "." + \
+             rad + "." + ftype + "f"
+
 
 #    # make an rti plot
 #    if plotRti:
@@ -941,20 +1035,21 @@ def test_code(plotRti=False):
     events = iscat_event_searcher(ctr_date, localdict, localdirfmt=localdirfmt,
                    tmpdir=tmpdir, fnamefmt=fnamefmt,
                    params=params, low_vel_iscat_event_only=False,
-                   search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=ffname)
+                   search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=ffname,
+                   plotrti=True)
     beams_dict = events
 
     if (beams_dict is not None) and plotRti:
         fig = rtiplot(rad, stm, etm, bmnum, params, beams_dict=beams_dict, 
                       fileType=ftype)
-        fig.savefig("./plots/"+ctr_date.strftime("%Y%m%d.") + ftype +  ".bm" +\
-                    str(bmnum) + ".rti.png",
-                    dpi=300)
+#        fig.savefig("./plots/"+ctr_date.strftime("%Y%m%d.") + ftype +  ".bm" +\
+#                    str(bmnum) + ".rti.png",
+#                    dpi=300)
 
     return beams_dict
 
 if __name__ == "__main__":
-    pass
+    #pass
     #beams_dict = test_code(plotRti=False)
-    #beams_dict = test_code(plotRti=True)
+    beams_dict = test_code(plotRti=True)
 

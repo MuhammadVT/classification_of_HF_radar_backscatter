@@ -14,7 +14,7 @@ import numpy as np
 
 def fetch_concat(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt, oneday_file_only=False):
 
-    """ fetches files for three days centered at ctr_date.day, then unzips and concatenates
+    """ fetches files for one or three days centered at ctr_date.day, then unzips and concatenates
     them into a single file """
   
     # fetch one day worthy of data only
@@ -38,7 +38,7 @@ def fetch_concat(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt, oneday_file
         # concatenate the files into a single file
         logging.info('Concatenating all the files in to one')
         # choose a temp file name with time span info for cacheing
-        if (channel is None):
+        if (channel is None) or (channel == "."):
             tmp_name = '%s%s.%s.%s.%s.%s.%s' % \
                       (tmpdir, stime.strftime("%Y%m%d"),
                        stime.strftime("%H%M%S"),
@@ -75,7 +75,8 @@ def boxcar_filter(fname):
         if not ftype+'f' in fname:
             try:
                 ffname = fname + 'f'
-                command = '/davit/lib/rst/rst/bin/fitexfilter ' + fname + ' > ' + ffname
+                command = '/davit/lib/vt/bin/fitexfilter ' + fname + ' > ' + ffname
+                #command = '~/Dropbox/fitexfilter ' + fname + ' > ' + ffname
                 logging.debug("performing: {:s}".format(command))
                 os.system(command)
                 logging.info("done filtering")
@@ -86,7 +87,8 @@ def boxcar_filter(fname):
         else:
             print "file " + fname + " exists"
             ffname = fname
-
+    else:
+        ffname = None
     return ffname
 
 def prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt,
@@ -342,12 +344,13 @@ def read_from_db(rad, stm, etm, ftype="fitacf",
         import sys 
         sys.path.append("../")
         from move_to_db.month_to_season import get_season_by_month
+        import datetime as dt
         
 
         # make a db connection
         dbName = rad + "_" + ftype + ".sqlite"
-        season = get_season_by_month(stm.month)
-        baseLocation = baseLocation + season + "/"
+        season = get_season_by_month((stm+dt.timedelta(days=1)).month)
+        baseLocation = baseLocation + season + "/original_data/"
         conn = sqlite3.connect(baseLocation + dbName, detect_types=sqlite3.PARSE_DECLTYPES)
         cur = conn.cursor()
 
@@ -386,15 +389,15 @@ def read_from_db(rad, stm, etm, ftype="fitacf",
         if plotrti:
             beams_dict_fl = read_file(ffname, rad, stm, etm, ['velocity'], ftype=ftype,
                                   data_from_db=False, plotrti=plotrti)
-            if beams_dict_fl:
-                for jj, bmnum in enumerate(beam_nums):
-                    beams_dict_fl[bmnum]['vel'] =  beams_dict[bmnum]['vel']
-                    beams_dict_fl[bmnum]['rsep'] =  beams_dict[bmnum]['rsep']
-                    beams_dict_fl[bmnum]['frang'] =  beams_dict[bmnum]['frang']
-                    beams_dict_fl[bmnum]['bmazm'] =  beams_dict[bmnum]['bmazm']
-                    beams_dict_fl[bmnum]['slist'] =  beams_dict[bmnum]['slist']
-                    beams_dict_fl[bmnum]['gsflg'] =  beams_dict[bmnum]['gsflg']
-                    beams_dict_fl[bmnum]['datetime'] =  beams_dict[bmnum]['datetime']
+#            if beams_dict_fl:
+#                for jj, bmnum in enumerate(beam_nums):
+#                    beams_dict_fl[bmnum]['vel'] =  beams_dict[bmnum]['vel']
+#                    beams_dict_fl[bmnum]['rsep'] =  beams_dict[bmnum]['rsep']
+#                    beams_dict_fl[bmnum]['frang'] =  beams_dict[bmnum]['frang']
+#                    beams_dict_fl[bmnum]['bmazm'] =  beams_dict[bmnum]['bmazm']
+#                    beams_dict_fl[bmnum]['slist'] =  beams_dict[bmnum]['slist']
+#                    beams_dict_fl[bmnum]['gsflg'] =  beams_dict[bmnum]['gsflg']
+#                    beams_dict_fl[bmnum]['datetime'] =  beams_dict[bmnum]['datetime']
             beams_dict = beams_dict_fl
 
         return beams_dict
@@ -405,9 +408,10 @@ def read_file(ffname, rad, stm, etm, params, ftype="fitacf",
     """ A wrapper for reading a file. It reads all beams at once 
     """
     if data_from_db:
+        print "loading data from db"
         beams_dict = read_from_db(rad, stm, etm, ftype=ftype,
                                   plotrti=plotrti, ffname=ffname)
-        print "reading data from db"
+        print "data is loaded from db"
     else:
         #try:
         myPtr = radDataOpen(stm, rad, eTime=etm, fileName=ffname, fileType=ftype)
@@ -842,7 +846,7 @@ def search_iscat_event(beam_dict, ctr_date, bmnum, params,
         all_gscat = set(all_nodes_flat) - all_iscat
         change_gsflg(all_gscat, data_dict, gscat_value=1)
 
-    # limit the data to to the day of ctr_date(center date)
+    # limit the data to the day of ctr_date(center date)
     if data_dict is not None:
         stm_target = ctr_date
         etm_target = ctr_date + dt.timedelta(days=1)
@@ -978,13 +982,13 @@ def rtiplot(rad, stm, etm, bmnum, params, beams_dict=None,
 def test_code(plotRti=False):
 
     # input parameters
-    #ctr_date = dt.datetime(2010,1,15)
-    ctr_date = dt.datetime(2008,9,17)
+    ctr_date = dt.datetime(2012,12,31)
+    #ctr_date = dt.datetime(2008,9,17)
     #ctr_date = dt.datetime(2012,1,21)
     #rad = "fhe"
     rad = "bks"
     channel = None
-    bmnum = 7
+    bmnum = 13
     params=['velocity']
     ftype = "fitacf"
     #ftype = "fitex"
@@ -993,7 +997,8 @@ def test_code(plotRti=False):
     localdict = {"ftype" : ftype, "radar" : rad, "channel" : channel}
     #tmpdir = "/tmp/sd/"
     #tmpdir = "/home/muhammad/Documents/Important/midlat_convection/data/bks/"
-    tmpdir = "../data/" + rad + "/"
+    #tmpdir = "../data/" + rad + "/"
+    tmpdir = "../data/tmp/"
     fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', '{date}.{hour}......{radar}.{ftype}']
 
     # stm and etms used for rti plotting 
@@ -1004,10 +1009,10 @@ def test_code(plotRti=False):
 
 
     # prepare the data
-    #ffname = prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt)
-    ffname = tmpdir + (ctr_date - dt.timedelta(days=1)).strftime("%Y%m%d.%H%M%S") + "." + \
-             (ctr_date + dt.timedelta(days=2)).strftime("%Y%m%d.%H%M%S") + "." + \
-             rad + "." + ftype + "f"
+    ffname = prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt)
+    #ffname = tmpdir + (ctr_date - dt.timedelta(days=1)).strftime("%Y%m%d.%H%M%S") + "." + \
+    #         (ctr_date + dt.timedelta(days=2)).strftime("%Y%m%d.%H%M%S") + "." + \
+    #         rad + "." + ftype + "f"
 
 
 #    # make an rti plot
@@ -1034,7 +1039,7 @@ def test_code(plotRti=False):
 
     events = iscat_event_searcher(ctr_date, localdict, localdirfmt=localdirfmt,
                    tmpdir=tmpdir, fnamefmt=fnamefmt,
-                   params=params, low_vel_iscat_event_only=False,
+                   params=params, low_vel_iscat_event_only=True,
                    search_allbeams=False, bmnum=bmnum, no_gscat=False, ffname=ffname,
                    plotrti=True)
     beams_dict = events

@@ -12,10 +12,11 @@ from glob import glob
 import pdb
 import numpy as np
 
-def fetch_concat(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt, oneday_file_only=False):
+def fetch_concat(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt,
+                 oneday_file_only=False):
 
-    """ fetches files for one or three days centered at ctr_date.day, then unzips and concatenates
-    them into a single file """
+    """ fetches files for one or three days centered at ctr_date.day,
+    then unzips and concatenates them into a single file """
   
     # fetch one day worthy of data only
     if oneday_file_only:
@@ -406,13 +407,42 @@ def read_file(ffname, rad, stm, etm, params, ftype="fitacf",
               data_from_db=True, plotrti=False):
 
     """ A wrapper for reading a file. It reads all beams at once 
+
+    Parameters
+    ----------
+    ffname : str
+        File name. Does not include file path
+    rad : str
+        Three-letter radar code. e.g., "bks"
+    stm : datetime.datetime
+        Start time
+    etm : datetime.datetime
+        End time
+    params : list
+        a list of the parameters to read
+    ftype : str, default to "fitacf"
+        SuperDARN line-of-sight data file type.
+    data_from_db : bool, default to True
+        If set to True, data will be read from a db. 
+        Else, from a file.
+    plotrti : bool, default to False
+        If set to True, all parameters need for an RTI plot will also be read.
+
+    Returns
+    -------
+    dict
+        A dict of dicts in the form of {bmnum:dict}.
+
     """
+
     if data_from_db:
+        # read data from a db
         print "loading data from db"
         beams_dict = read_from_db(rad, stm, etm, ftype=ftype,
                                   plotrti=plotrti, ffname=ffname)
         print "data is loaded from db"
     else:
+        # read data from a file
         #try:
         myPtr = radDataOpen(stm, rad, eTime=etm, fileName=ffname, fileType=ftype)
         beams_dict = read_data(myPtr, params=params, tbands=None, plotrti=plotrti)
@@ -426,6 +456,27 @@ def read_file_for_rtiplot(ffname, rad, stm, etm, bmnum, params, ftype="fitacf"):
 
     """ A wrapper for reading a file. this will read data for a certain beam 
         so that rtiplot function can plot the data.
+
+    Parameters
+    ----------
+    ffname : str
+        File name. Does not include file path
+    rad : str
+        Three-letter radar code. e.g., "bks"
+    stm : datetime.datetime
+        Start time
+    etm : datetime.datetime
+        End time
+    params : list
+        a list of the parameters to read
+    ftype : str, default to "fitacf"
+        SuperDARN line-of-sight data file type.
+
+    Returns
+    -------
+    dict
+        A dict of dicts in the form of {bmnum:dict}.
+
     """
 
     myPtr = radDataOpen(stm, rad, eTime=etm, fileName=ffname, fileType=ftype)

@@ -138,7 +138,7 @@ def read_data_for_rtiplot(myPtr, bmnum, params=["velocity"], tbands=None, coords
         from datetime import datetime
         myPtr = pydarn.sdio.radDataOpen(datetime(2012,11,24),'sas')
         myBeam = myPtr.readRec()
-        data_dict = read_data(myPtr, bmnum, params=['velocity'], [8000,20000])
+        data_dict = read_data_for_rtiplot(myPtr, bmnum, params=['velocity'], [8000,20000])
 
     Written by Muhammad 20160722
 
@@ -213,7 +213,7 @@ def read_data_for_rtiplot(myPtr, bmnum, params=["velocity"], tbands=None, coords
 
 
 
-def read_data(myPtr, params=["velocity"], tbands=None, coords="geo", plotrti=False):
+def read_data_from_file(myPtr, params=["velocity"], tbands=None, coords="geo", plotrti=False):
 
     """Reads data from the file pointed to by myPtr
 
@@ -243,7 +243,7 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo", plotrti=Fal
         from datetime import datetime
         myPtr = pydarn.sdio.radDataOpen(datetime(2012,11,24),'sas')
         myBeam = myPtr.readRec()
-        data_dict = read_data(myPtr, params=['velocity'], [8000,20000])
+        data_dict = read_data_from_file(myPtr, params=['velocity'], [8000,20000])
 
     Written by Muhammad 20160722
 
@@ -329,13 +329,11 @@ def read_data(myPtr, params=["velocity"], tbands=None, coords="geo", plotrti=Fal
     return all_beams
 
 def read_from_db(rad, stm, etm, ftype="fitacf",
-                 baseLocation="../data/sqlite3/",
-                 plotrti=False, ffname=None):
+                 dbName=None, baseLocation="../data/sqlite3/",
+                 plotrti=False):
 
-        """ reads the data from db instead of files
-        ffname : None or string
-            ffname only works if plotrti is True
-        
+        """ reads the data from db instead of files.
+        NOTE: plotrti option does not work. working on it...
         
         """
 
@@ -348,9 +346,8 @@ def read_from_db(rad, stm, etm, ftype="fitacf",
         
 
         # make a db connection
-        dbName = rad + "_" + ftype + ".sqlite"
-        season = get_season_by_month((stm+dt.timedelta(days=1)).month)
-        baseLocation = baseLocation + season + "/original_data/"
+        if dbName is None:
+            dbName = rad + "_" + ftype + ".sqlite"
         conn = sqlite3.connect(baseLocation + dbName, detect_types=sqlite3.PARSE_DECLTYPES)
         cur = conn.cursor()
 
@@ -386,31 +383,15 @@ def read_from_db(rad, stm, etm, ftype="fitacf",
         if not beams_dict:
             beams_dict = None
 
-        if plotrti:
-            beams_dict_fl = read_file(ffname, rad, stm, etm, ['velocity'], ftype=ftype,
-                                  data_from_db=False, plotrti=plotrti)
-#            if beams_dict_fl:
-#                for jj, bmnum in enumerate(beam_nums):
-#                    beams_dict_fl[bmnum]['vel'] =  beams_dict[bmnum]['vel']
-#                    beams_dict_fl[bmnum]['rsep'] =  beams_dict[bmnum]['rsep']
-#                    beams_dict_fl[bmnum]['frang'] =  beams_dict[bmnum]['frang']
-#                    beams_dict_fl[bmnum]['bmazm'] =  beams_dict[bmnum]['bmazm']
-#                    beams_dict_fl[bmnum]['slist'] =  beams_dict[bmnum]['slist']
-#                    beams_dict_fl[bmnum]['gsflg'] =  beams_dict[bmnum]['gsflg']
-#                    beams_dict_fl[bmnum]['datetime'] =  beams_dict[bmnum]['datetime']
-            beams_dict = beams_dict_fl
-
         return beams_dict
 
-def read_file(ffname, rad, stm, etm, params, ftype="fitacf",
-              data_from_db=True, plotrti=False):
-
+def read_data(rad, stm, etm, params, ftype="fitacf",
+              dbName=None, baseLocation="../data/sqlite3/",
+              data_from_db=True, ffname=None, plotrti=False):
     """ A wrapper for reading a file. It reads all beams at once 
 
     Parameters
     ----------
-    ffname : str
-        File name. Does not include file path
     rad : str
         Three-letter radar code. e.g., "bks"
     stm : datetime.datetime
@@ -426,6 +407,8 @@ def read_file(ffname, rad, stm, etm, params, ftype="fitacf",
         Else, from a file.
     plotrti : bool, default to False
         If set to True, all parameters need for an RTI plot will also be read.
+    ffname : str, default to None
+        File name. Does not include file path
 
     Returns
     -------
@@ -438,13 +421,14 @@ def read_file(ffname, rad, stm, etm, params, ftype="fitacf",
         # read data from a db
         print "loading data from db"
         beams_dict = read_from_db(rad, stm, etm, ftype=ftype,
-                                  plotrti=plotrti, ffname=ffname)
+                                  dbName=dbName, baseLocation=baseLocation,
+                                  plotrti=plotrti)
         print "data is loaded from db"
     else:
         # read data from a file
         #try:
         myPtr = radDataOpen(stm, rad, eTime=etm, fileName=ffname, fileType=ftype)
-        beams_dict = read_data(myPtr, params=params, tbands=None, plotrti=plotrti)
+        beams_dict = read_data_from_file(myPtr, params=params, tbands=None, plotrti=plotrti)
         #except:
         #    beams_dict = None
 
@@ -941,10 +925,12 @@ def search_iscat_event(beam_dict, ctr_date, bmnum, params,
 #    return
 
 def iscat_event_searcher(ctr_date, localdict,
-                   tmpdir=None, fnamefmt=None, localdirfmt=None, 
-                   params=["velocity"], low_vel_iscat_event_only=False,
-                   search_allbeams=True, bmnum=7, no_gscat=False, ffname=None,
-                   plotrti=False):
+                         tmpdir=None, fnamefmt=None, localdirfmt=None, 
+                         params=["velocity"], low_vel_iscat_event_only=False,
+                         search_allbeams=True, bmnum=7, no_gscat=False, 
+                         data_from_db=True, dbName=None,
+                         baseLocation="../data/sqlite3/",
+                         ffname=None, plotrti=False):
     """ A wrapper that does all of file prepareting, file reading, and 
         searching for iscat events.
         
@@ -957,8 +943,8 @@ def iscat_event_searcher(ctr_date, localdict,
         bmnum argument only works in search_allbeams is set to False
     no_gscat : removes all the gscat
     ffname : string
-        if ffname is not set to None, ffname will be be read.
-        if ffname is None, then tmpdir, fnamefmt, localdirfmt all
+        if data_from_db is set to False, data will be be read from ffname.
+        In this case tmpdir, fnamefmt, localdirfmt all
         must have to be set other than None.
 
     Returns : dict
@@ -974,12 +960,19 @@ def iscat_event_searcher(ctr_date, localdict,
     ftype = localdict["ftype"]
 
     # prepare the data
-    if not ffname:
+    if not data_from_db:
         ffname = prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt) 
 
 #    t1 = dt.datetime.now()
     # read the file. Returns a dict of dicts with bmnums as key words.
-    all_beams = read_file(ffname, rad, stm, etm, params, ftype=ftype, plotrti=plotrti)
+    all_beams = read_data(ffname, rad, stm, etm, params, ftype=ftype,
+                          data_from_db=data_from_db, dbName=dbName,
+                          baseLocation=baseLocation, ffname=ffname, 
+                          plotrti=plotrti)
+
+def read_data(rad, stm, etm, params, ftype="fitacf",
+              dbName=None, baseLocation="../data/sqlite3/",
+              data_from_db=True, plotrti=False):
 #    t2 = dt.datetime.now()
 #    print ("read_file takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
@@ -1049,7 +1042,8 @@ def test_code(plotRti=False):
     #tmpdir = "/home/muhammad/Documents/Important/midlat_convection/data/bks/"
     #tmpdir = "../data/" + rad + "/"
     tmpdir = "../data/tmp/"
-    fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', '{date}.{hour}......{radar}.{ftype}']
+    fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}',\
+                '{date}.{hour}......{radar}.{ftype}']
 
     # stm and etms used for rti plotting 
     stm = ctr_date - dt.timedelta(days=0)

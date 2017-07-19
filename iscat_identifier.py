@@ -338,7 +338,6 @@ def read_from_db(rad, stm, etm, ftype="fitacf",
         
         
         """
-        
 
         import sqlite3
         import json

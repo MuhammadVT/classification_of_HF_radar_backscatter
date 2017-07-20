@@ -965,19 +965,16 @@ def iscat_event_searcher(ctr_date, localdict,
 
 #    t1 = dt.datetime.now()
     # read the file. Returns a dict of dicts with bmnums as key words.
-    all_beams = read_data(ffname, rad, stm, etm, params, ftype=ftype,
+    all_beams = read_data(rad, stm, etm, params, ftype=ftype,
                           data_from_db=data_from_db, dbName=dbName,
                           baseLocation=baseLocation, ffname=ffname, 
                           plotrti=plotrti)
-
-def read_data(rad, stm, etm, params, ftype="fitacf",
-              dbName=None, baseLocation="../data/sqlite3/",
-              data_from_db=True, plotrti=False):
 #    t2 = dt.datetime.now()
 #    print ("read_file takes " + str((t2-t1).total_seconds() / 60.)) + " mins"
 
     # search for iscat events
 #    t1 = dt.datetime.now()
+
     if all_beams is None:
         events = None
     else:

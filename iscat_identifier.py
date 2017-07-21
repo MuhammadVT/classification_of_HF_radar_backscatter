@@ -314,7 +314,7 @@ def read_data_from_file(myPtr, params=["velocity"], tbands=None, coords="geo", p
                 # To save time and RAM, only keep the data specified
                 # in params.
                 if('velocity' in params):
-                    all_beams[bmnum]['vel'].append(myBeam.fit.v)
+                    all_beams[bmnum]['vel'].append(round(myBeam.fit.v, 2))
 
         myBeam = myPtr.readRec()
 

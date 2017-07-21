@@ -318,7 +318,7 @@ def read_data_from_file(myPtr, params=["velocity"], tbands=None, coords="geo", p
                 # in params.
                 if('velocity' in params):
                     try:
-                        all_beams[bmnum]['vel'].append(round(myBeam.fit.v, 2))
+                        all_beams[bmnum]['vel'].append([round(x,2) for x in myBeam.fit.v])
                     except:
                         all_beams[bmnum]['vel'].append(None)
 

@@ -1,9 +1,13 @@
+"""
+Written by Muhammad on 07/22/2016
+Modified by Muhammad on 07/25/2017
+"""
+
 import datetime as dt
 from davitpy.pydarn.sdio.fetchUtils import fetch_local_files
 from davitpy.pydarn.sdio import radDataOpen, radDataReadRec
 from davitpy.pydarn.sdio import radDataPtr
 import davitpy
-#davitpy.rcParams['verbosity'] = "debug-annoying"
 import logging
 import os
 import string
@@ -16,22 +20,54 @@ def fetch_concat(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt,
                  oneday_file_only=False):
 
     """ fetches files for one or three days centered at ctr_date.day,
-    then unzips and concatenates them into a single file """
+    then unzips and concatenates them into a single file
+    
+    Parameters
+    ----------
+    ctr_date : datetime.datetime
+        a full day for which data are to be read. 
+    localdirfmt : str
+        string defining the local directory structure
+        (eg "{ftype}/{year}/{month}/{day}/")
+    localdict : dict
+        Contains keys for non-time related information in remotedirfmt and
+        fnamefmt (eg remotedict={'ftype':'fitex','radar':'sas','channel':'a'})  
+    tmpdir : str
+        Temporary directory in which to store uncompressed files (must end with
+        a "/").	
+    fnamefmt : str or list
+        Optional string or list of file name formats
+        (eg fnamefmt = ['{date}.{hour}......{radar}.{channel}.{ftype}', \
+            '{date}.C0.{radar}.{ftype}'] 
+        or fnamefmt = '{date}.{hour}......{radar}.{ftype}')	
+    oneday_file_only : bool
+        If set to True three days of data centered at ctr_date will be concatenated.
+        If set to False one day of data specified by ctr_date will be concatenated.
+    
+    Returns
+    -------
+    str
+	full path of the contatenated filename.
+    
+    """
   
-    # fetch one day worthy of data only
+    # construct stime and etime for one-day worthy of data only
     if oneday_file_only:
         stime = ctr_date
         etime = ctr_date + dt.timedelta(days=1)
+
+    # construct stime and etime for three-day worthy of data only
     else:
         # expend the time to three days
         stime = ctr_date - dt.timedelta(days=1)
         etime = ctr_date + dt.timedelta(days=2)
 
+    # extract info from the localdict argument
     radcode = localdict["radar"]
     ftype = localdict["ftype"]
     channel = localdict["channel"]
 
-    # fetch the data for three days
+    # fetch the data for one day or three days
     file_list = fetch_local_files(stime, etime, localdirfmt, localdict, tmpdir, fnamefmt)
 
     # check if we have found files
@@ -46,8 +82,7 @@ def fetch_concat(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt,
                        etime.strftime("%Y%m%d"),
                        etime.strftime("%H%M%S"), radcode, ftype)
         else:
-            tmp_name = '%s%s.%s.%s.%s.%s.%s.%s' % \
-                      (tmpdir, stime.strftime("%Y%m%d"),
+            tmp_name = '%s%s.%s.%s.%s.%s.%s.%s' % \ (tmpdir, stime.strftime("%Y%m%d"),
                        stime.strftime("%H%M%S"),
                        etime.strftime("%Y%m%d"),
                        etime.strftime("%H%M%S"),
@@ -69,12 +104,26 @@ def fetch_concat(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt,
     return fname
 
 def boxcar_filter(fname):
+    """Does boxcar filtering to data in a file
 
-    # do the boxcar filter
+    Parameters
+    -----------
+    fname : str
+        Full path of a file.
+
+    Returns
+    -------
+    ffname : str
+        Full path of a data file that is boxcar median filtered.
+    
+    """
+
     if fname is not None:
+        # extract the data type (e.g., fitacf, fitex, etc.) from fname
         ftype = fname.split(".")[-1]
         if not ftype+'f' in fname:
             try:
+                # do boxcar filtering
                 ffname = fname + 'f'
                 command = '/davit/lib/vt/bin/fitexfilter ' + fname + ' > ' + ffname
                 #command = '~/Dropbox/fitexfilter ' + fname + ' > ' + ffname
@@ -94,9 +143,12 @@ def boxcar_filter(fname):
 
 def prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt,
                  oneday_file_only=False):
-    """ A wrapper for file fetching and boxcar filtering"""
+    """ A wrapper for file fetching and boxcar filtering
+    NOTE : refer to fetch_concat and boxcar_filter funcions for argument explanation
+    """
 
-    # fetch and concatenate the three consecutive days of data centered on the target date 
+    # fetch and concatenate one day or three consecutive days of data
+    # centered on the target date.
     concated_file = fetch_concat(ctr_date, localdirfmt, localdict, tmpdir,
                                  fnamefmt, oneday_file_only=oneday_file_only)
 
@@ -108,14 +160,12 @@ def prepare_file(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt,
 
 def read_data_for_rtiplot(myPtr, bmnum, params=["velocity"], tbands=None, coords="geo"):
 
-    """Reads data from the file pointed to by myPtr
+    """Reads data from the file pointed to by myPtr. It reads data for the given bmnum only.
 
     Parameter
     ---------
     myPtr :
         a davitpy file pointer object
-    myBeam : 
-        a davitpy beam object
     bmnum : int
         beam number of data to read in
     params : list
@@ -129,18 +179,16 @@ def read_data_for_rtiplot(myPtr, bmnum, params=["velocity"], tbands=None, coords
 
     Returns
     -------
-    A dictionary of the data. Data is stored in lists and separated in
-    to tbands.
+    dict
+        A dictionary of the data. Data is stored in lists and separated in
+        to tbands.
 
     Example
     -------
         from davitpy import pydarn
         from datetime import datetime
         myPtr = pydarn.sdio.radDataOpen(datetime(2012,11,24),'sas')
-        myBeam = myPtr.readRec()
         data_dict = read_data_for_rtiplot(myPtr, bmnum, params=['velocity'], [8000,20000])
-
-    Written by Muhammad 20160722
 
     """
 
@@ -156,12 +204,13 @@ def read_data_for_rtiplot(myPtr, bmnum, params=["velocity"], tbands=None, coords
     data_keys = ['vel', 'pow', 'wid', 'elev', 'phi0', 'datetime', 'freq', 'cpid',
                  'nave', 'nsky', 'nsch', 'slist', 'mode', 'rsep', 'nrang',
                  'frang', 'gsflg', 'velocity_error', 'bmazm']
+    # initialize data dict
     for d in data_keys:
         data[d] = []
 
     # Read the parameters of interest.
     myPtr.rewind()
-    myBeam = myPtr.readRec()
+    myBeam = myPtr.readRec()    # reads one beam record at a time
     while(myBeam is not None):
         if(myBeam.time > myPtr.eTime): break
         if(myBeam.bmnum == bmnum and (myPtr.sTime <= myBeam.time)):
@@ -181,17 +230,6 @@ def read_data_for_rtiplot(myPtr, bmnum, params=["velocity"], tbands=None, coords
                 data['gsflg'].append(myBeam.fit.gflg)
                 data['slist'].append(myBeam.fit.slist)
 
-#                # save the center lat, lon position of each scatter. This takes too much time
-#                site = pydarn.radar.network().getRadarById(myBeam.stid) \
-#                    .getSiteByDate(myBeam.time)
-#                myFov = pydarn.radar.radFov.fov(site=site, ngates=myBeam.prm.nrang,
-#                                                nbeams=site.maxbeam,
-#                                                rsep=myBeam.prm.rsep,
-#                                                coords=coords,
-#                                                date_time=myBeam.time)
-#                data['clats'].append(myFov.latCenter[bmnum][myBeam.fit.slist])
-#                data['clons'].append(myFov.lonCenter[bmnum][myBeam.fit.slist])
-                
                 # To save time and RAM, only keep the data specified
                 # in params.
                 if('velocity' in params):
@@ -213,16 +251,15 @@ def read_data_for_rtiplot(myPtr, bmnum, params=["velocity"], tbands=None, coords
 
 
 
-def read_data_from_file(myPtr, params=["velocity"], tbands=None, coords="geo", plotrti=False):
+def read_data_from_file(myPtr, params=["velocity"], tbands=None,
+                        coords="geo", plotrti=False):
 
-    """Reads data from the file pointed to by myPtr
+    """Reads data from the file pointed to by myPtr.
 
     Parameter
     ---------
     myPtr :
         a davitpy file pointer object
-    myBeam : 
-        a davitpy beam object
     params : list
         a list of the parameters to read
     tbands : list
@@ -231,21 +268,21 @@ def read_data_from_file(myPtr, params=["velocity"], tbands=None, coords="geo", p
         converts the range-time cell position (clat, clon) into the value 
         given by coords. Has to be one of ["mag", "geo", "mlt"]
         (Note: only works for "geo" so far due to speed issue)
+    plotrti : bool
+        If set to True, all the parameters needed to make an rti plot will be read.
 
     Returns
     -------
-    A list of dicts of the data. Each dict element stores data for a certain beam.
-    Data in each dict is stored in lists and separated in to tbands.
+    dict
+        A list of dicts of the data. Each dict element stores data for a certain beam.
+        Data in each dict is stored in lists and separated in to tbands.
 
     Example
     -------
         from davitpy import pydarn
         from datetime import datetime
         myPtr = pydarn.sdio.radDataOpen(datetime(2012,11,24),'sas')
-        myBeam = myPtr.readRec()
         data_dict = read_data_from_file(myPtr, params=['velocity'], [8000,20000])
-
-    Written by Muhammad 20160722
 
     """
 
@@ -267,8 +304,9 @@ def read_data_from_file(myPtr, params=["velocity"], tbands=None, coords="geo", p
         # use the following data_keys if you want to plot the data using rtiplot function
         data_keys = ['vel', 'pow', 'wid', 'elev', 'phi0', 'datetime', 'freq', 'cpid',
                      'nave', 'nsky', 'nsch', 'slist', 'mode', 'rsep', 'nrang',
-                     'frang', 'gsflg', 'velocity_error', 'bmazm', 'clats', 'clons']
+                     'frang', 'gsflg', 'velocity_error', 'bmazm']
 
+    # initialize data parameters
     for d in data_keys:
         data[d] = []
 
@@ -300,8 +338,6 @@ def read_data_from_file(myPtr, params=["velocity"], tbands=None, coords="geo", p
                 else:
                     all_beams[bmnum]['slist'].append(None)
 
-####################################################################
-
                 if plotrti:
                     all_beams[bmnum]['nrang'].append(myBeam.prm.nrang)
                     all_beams[bmnum]['cpid'].append(myBeam.cp)
@@ -310,9 +346,6 @@ def read_data_from_file(myPtr, params=["velocity"], tbands=None, coords="geo", p
                     all_beams[bmnum]['nsch'].append(myBeam.prm.noisesearch)
                     all_beams[bmnum]['freq'].append(myBeam.prm.tfreq / 1e3)
                     all_beams[bmnum]['mode'].append(myBeam.prm.ifmode)
-
-####################################################################
-
 
                 # To save time and RAM, only keep the data specified
                 # in params.
@@ -328,6 +361,7 @@ def read_data_from_file(myPtr, params=["velocity"], tbands=None, coords="geo", p
     for bn in all_beams.keys():
         if all_beams[bn]['datetime'] == []:
             all_beams.pop(bn)
+
     # set all_beams to None if it is an empty dict
     if all_beams  == {}:
         all_beams = None

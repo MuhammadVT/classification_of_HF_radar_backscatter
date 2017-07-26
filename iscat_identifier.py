@@ -82,7 +82,8 @@ def fetch_concat(ctr_date, localdirfmt, localdict, tmpdir, fnamefmt,
                        etime.strftime("%Y%m%d"),
                        etime.strftime("%H%M%S"), radcode, ftype)
         else:
-            tmp_name = '%s%s.%s.%s.%s.%s.%s.%s' % \ (tmpdir, stime.strftime("%Y%m%d"),
+            tmp_name = '%s%s.%s.%s.%s.%s.%s.%s' % \
+                       (tmpdir, stime.strftime("%Y%m%d"),
                        stime.strftime("%H%M%S"),
                        etime.strftime("%Y%m%d"),
                        etime.strftime("%H%M%S"),

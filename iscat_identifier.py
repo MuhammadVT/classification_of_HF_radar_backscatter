@@ -370,6 +370,7 @@ def read_from_db(rad, stm, etm, ftype="fitacf",
 	import sys
 	sys.path.append("../")
 	from mysql_dbutils.db_config import db_config
+        import logging
         
         # construct a db name
         if dbName is None:
@@ -380,16 +381,18 @@ def read_from_db(rad, stm, etm, ftype="fitacf",
 	config_info = config.read_db_config()
 
 	# make db connection
-	conn = MySQLConnection(**config_info)
+	conn = MySQLConnection(database=dbName, **config_info)
         cur = conn.cursor()
-	cur.execute("USE {db}".format(db=dbName))
 
         # get all the table names
 	command = "SELECT table_name FROM information_schema.tables "
 	command = command + "where table_schema={db}".format(db=dbName)
-        cur.execute(command)
-        tbl_names = cur.fetchall()
-        tbl_names = [x[0] for x in tbl_names]
+        try: 
+            cur.execute(command)
+            tbl_names = cur.fetchall()
+            tbl_names = [x[0] for x in tbl_names]
+        except Exception, e:
+            logging.error(e)
 
         # get the available beam numbers 
         beam_nums = [x.split("_")[-1][2:] for x in tbl_names]
@@ -403,8 +406,11 @@ def read_from_db(rad, stm, etm, ftype="fitacf",
                        WHERE datetime BETWEEN '{stm}' AND '{etm}'\
                        ORDER BY datetime".\
                        format(tb=tbl_names[jj], stm=stm, etm=etm)
-            cur.execute(command)
-            rws = cur.fetchall()
+            try:
+                cur.execute(command)
+                rws = cur.fetchall()
+            except Exception, e:
+                logging.error(e)
             if rws:
                 data_dict = {}
                 data_dict['vel'] = [json.loads(x[0]) for x in rws]
@@ -417,6 +423,9 @@ def read_from_db(rad, stm, etm, ftype="fitacf",
                 beams_dict[bmnum] = data_dict
         if not beams_dict:
             beams_dict = None
+
+        # close the db
+        conn.close()
 
         return beams_dict
 
@@ -1125,6 +1134,7 @@ def iscat_event_searcher(ctr_date, localdict,
     section: str
         section of database configuration
     ffname : string, default to None
+        The file name of the boxcar filtered data.
         if data_from_db is set to False and ffname is not None,
 	then data will be be read from ffname.
         if data_from_db is set to False and ffname is None,
